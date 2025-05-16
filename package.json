@@ -3,6 +3,7 @@
 	"private": true,
 	"description": "YouTube comments scraper using youtubei.js and Netlify functions",
 	"author": "sglkc",
+	"license": "MIT",
 	"type": "module",
 	"scripts": {
 		"build": "tsc",
