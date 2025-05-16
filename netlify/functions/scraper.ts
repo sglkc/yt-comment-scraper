@@ -9,7 +9,7 @@ type SortBy = 'relevance' | 'rating' | 'upload_date' | 'view_count';
 const startTime = () => {
   const start = Date.now();
   // Allow 29.5 seconds max (giving 0.5s buffer)
-  const MAX_EXECUTION_TIME = 29500;
+  const MAX_EXECUTION_TIME = 9500;
   
   return {
     hasTimeLeft: () => {
