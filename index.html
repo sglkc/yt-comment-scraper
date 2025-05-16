@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Judol YouTube Comment Scraper</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap">
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --primary-light: #a29bfe;
+            --secondary-color: #fd79a8;
+            --dark-color: #2d3436;
+            --light-color: #f9f9f9;
+            --success-color: #00b894;
+            --warning-color: #fdcb6e;
+            --danger-color: #d63031;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+            color: var(--dark-color);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            font-size: 2.5rem;
+            position: relative;
+        }
+
+        h1::after {
+            content: "";
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+            border-radius: 2px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .card-header {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--primary-light);
+            color: var(--primary-color);
+            position: relative;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--dark-color);
+            font-size: 0.9rem;
+        }
+
+        .form-help {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236c5ce7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
+        }
+
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-right: -0.75rem;
+            margin-left: -0.75rem;
+        }
+
+        .col {
+            flex: 1 0 0%;
+            padding: 0 0.75rem;
+        }
+
+        @media (max-width: 768px) {
+            .col {
+                flex: 0 0 100%;
+                max-width: 100%;
+                margin-bottom: 1rem;
+            }
+        }
+
+        .btn {
+            display: inline-block;
+            font-weight: 600;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: middle;
+            user-select: none;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            line-height: 1.5;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            background-image: radial-gradient(circle, #fff 10%, transparent 10%);
+            background-repeat: no-repeat;
+            background-position: 50%;
+            transform: scale(10, 10);
+            opacity: 0;
+            transition: transform 0.5s, opacity 1s;
+        }
+
+        .btn:active::after {
+            transform: scale(0, 0);
+            opacity: 0.3;
+            transition: 0s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            color: white;
+            width: 100%;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color), #55efc4);
+            color: white;
+        }
+
+        #loading-indicator {
+            display: none;
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        .spinner {
+            width: 70px;
+            text-align: center;
+            margin: 0 auto;
+        }
+
+        .spinner > div {
+            width: 18px;
+            height: 18px;
+            background-color: var(--primary-color);
+            border-radius: 100%;
+            display: inline-block;
+            animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+        }
+
+        .spinner .bounce1 {
+            animation-delay: -0.32s;
+        }
+
+        .spinner .bounce2 {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes sk-bouncedelay {
+            0%, 80%, 100% { 
+                transform: scale(0);
+            } 40% { 
+                transform: scale(1.0);
+            }
+        }
+
+        #results-container {
+            display: none;
+        }
+
+        .result-stats {
+            background: linear-gradient(135deg, #e0eafc, #cfdef3);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .stat-item {
+            flex: 1 0 30%;
+            min-width: 200px;
+            margin: 0.5rem 0;
+        }
+
+        .stat-item strong {
+            display: block;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #555;
+        }
+
+        .stat-item span {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .table-container {
+            max-height: 500px;
+            overflow-y: auto;
+            border-radius: 8px;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table th {
+            background-color: var(--primary-light);
+            color: white;
+            padding: 1rem;
+            text-align: left;
+            position: sticky;
+            top: 0;
+        }
+
+        table tr {
+            border-bottom: 1px solid #e0e0e0;
+            transition: all 0.3s;
+        }
+
+        table tr:hover {
+            background-color: rgba(162, 155, 254, 0.1);
+        }
+
+        table td {
+            padding: 1rem;
+            vertical-align: top;
+            color: #444;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .alert-danger {
+            background-color: rgba(214, 48, 49, 0.1);
+            border-left: 4px solid var(--danger-color);
+            color: var(--danger-color);
+        }
+
+        /* Shimmer effect on cards */
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(
+                to right, 
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.2) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            transform: skewX(-25deg);
+            animation: shimmer 3s infinite;
+            pointer-events: none;
+        }
+
+        @keyframes shimmer {
+            0% {
+                left: -100%;
+            }
+            100% {
+                left: 200%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube Comment Scraper</h1>
+        
+        <div class="card">
+            <div class="card-header">Search Parameters</div>
+            <form id="scraper-form">
+                <div class="form-group">
+                    <label for="query" class="form-label">Search Query:</label>
+                    <input type="text" class="form-control" id="query" name="query" placeholder="Enter video search query" required>
+                </div>
+                
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="maxVideos" class="form-label">Max Videos:</label>
+                            <input type="number" class="form-control" id="maxVideos" name="maxVideos" value="20" min="1" max="50">
+                            <div class="form-help">Maximum: 50</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="maxVidComments" class="form-label">Max Comments Per Video:</label>
+                            <input type="number" class="form-control" id="maxVidComments" name="maxVidComments" value="100" min="1" max="500">
+                            <div class="form-help">Maximum: 500</div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="maxComments" class="form-label">Max Total Comments:</label>
+                            <input type="number" class="form-control" id="maxComments" name="maxComments" value="500" min="1" max="1000">
+                            <div class="form-help">Maximum: 1000</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="uploadDate" class="form-label">Upload Date:</label>
+                            <select class="form-select" id="uploadDate" name="uploadDate">
+                                <option value="hour">Last Hour</option>
+                                <option value="today">Today</option>
+                                <option value="week" selected>This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="year">This Year</option>
+                                <option value="all">All Time</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="sortBy" class="form-label">Sort By:</label>
+                            <select class="form-select" id="sortBy" name="sortBy">
+                                <option value="relevance">Relevance</option>
+                                <option value="upload_date">Upload Date</option>
+                                <option value="view_count" selected>View Count</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">Start Scraping</button>
+                </div>
+            </form>
+        </div>
+        
+        <div id="loading-indicator">
+            <div class="spinner">
+                <div class="bounce1"></div>
+                <div class="bounce2"></div>
+                <div class="bounce3"></div>
+            </div>
+            <p>Scraping comments... This may take a few moments.</p>
+        </div>
+        
+        <div id="results-container">
+            <div class="card">
+                <div class="card-header">Results</div>
+                <div class="result-stats">
+                    <div class="stat-item">
+                        <strong>Query</strong>
+                        <span id="result-query"></span>
+                    </div>
+                    <div class="stat-item">
+                        <strong>Videos Scraped</strong>
+                        <span id="result-videos"></span>
+                    </div>
+                    <div class="stat-item">
+                        <strong>Total Comments</strong>
+                        <span id="result-comments"></span>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Author</th>
+                                <th>Comment</th>
+                                <th>Video Title</th>
+                                <th>Channel</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comments-table">
+                            <!-- Comments will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 1.5rem;">
+                    <button id="export-csv" class="btn btn-success">Export to CSV</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="error-message" class="alert alert-danger"></div>
+    </div>
+
+    <script src="index.js"></script>
+</body>
+</html>
