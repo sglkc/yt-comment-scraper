@@ -10,8 +10,60 @@ const downloadCsvBtn = document.getElementById('download-csv');
 // Store the results for CSV export
 let scrapedData = [];
 
+// Form validation function
+function validateForm() {
+    const formData = new FormData(form);
+    let isValid = true;
+    let errorText = '';
+
+    // Check if query is provided
+    const query = formData.get('query');
+    if (!query || query.trim() === '') {
+        errorText = 'Please enter a search query';
+        isValid = false;
+    }
+
+    // Validate numeric parameters
+    const maxVideos = parseInt(formData.get('maxVideos') || '20', 10);
+    const maxVidComments = parseInt(formData.get('maxVidComments') || '100', 10);
+    const maxComments = parseInt(formData.get('maxComments') || '500', 10);
+
+    // Check limits
+    if (maxVideos > 50) {
+        errorText = 'Maximum videos should be 50 or less';
+        isValid = false;
+    }
+
+    if (maxVidComments > 1000) {
+        errorText = 'Maximum comments per video should be 1000 or less';
+        isValid = false;
+    }
+
+    if (maxComments > 5000) {
+        errorText = 'Maximum total comments should be 5000 or less';
+        isValid = false;
+    }
+
+    // Show error if validation fails
+    if (!isValid) {
+        errorMessage.textContent = errorText;
+        errorMessage.style.display = 'block';
+    } else {
+        errorMessage.style.display = 'none';
+    }
+
+    return isValid;
+}
+
 // Handle direct CSV download
-downloadCsvBtn.addEventListener('click', () => {
+downloadCsvBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    
+    // Validate the form
+    if (!validateForm()) {
+        return;
+    }
+    
     // Get form values
     const formData = new FormData(form);
     const params = new URLSearchParams();
@@ -33,7 +85,7 @@ downloadCsvBtn.addEventListener('click', () => {
         setTimeout(() => {
             downloadCsvBtn.disabled = false;
             downloadCsvBtn.textContent = 'Download CSV Directly';
-        }, 3000);
+        }, 10_000);
 
     } catch (error) {
         console.error('Error:', error);
@@ -109,6 +161,11 @@ streamCsvBtn.addEventListener('click', async (e) => {
     commentsTable.innerHTML = '';
     errorMessage.style.display = 'none';
     errorMessage.textContent = '';
+
+    // Validate the form
+    if (!validateForm()) {
+        return;
+    }
 
     // Get form values
     const formData = new FormData(form);

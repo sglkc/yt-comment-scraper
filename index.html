@@ -59,15 +59,15 @@
                     <div class="col">
                         <div class="form-group">
                             <label for="maxVidComments" class="form-label">Max Comments Per Video:</label>
-                            <input type="number" class="form-control" id="maxVidComments" name="maxVidComments" value="100" min="1" max="500">
-                            <div class="form-help">Recommended Maximum: 500</div>
+                            <input type="number" class="form-control" id="maxVidComments" name="maxVidComments" value="100" min="1" max="1000">
+                            <div class="form-help">Recommended Maximum: 1000</div>
                         </div>
                     </div>
                     <div class="col">
                         <div class="form-group">
                             <label for="maxComments" class="form-label">Max Total Comments:</label>
-                            <input type="number" class="form-control" id="maxComments" name="maxComments" value="500" min="1" max="1000">
-                            <div class="form-help">Recommended Maximum: 1000</div>
+                            <input type="number" class="form-control" id="maxComments" name="maxComments" value="500" min="1" max="5000">
+                            <div class="form-help">Recommended Maximum: 5000</div>
                         </div>
                     </div>
                 </div>
@@ -113,6 +113,8 @@
             </form>
         </div>
         
+        <div id="error-message" class="alert alert-danger"></div>
+
         <div id="loading-indicator">
             <div class="spinner">
                 <div class="bounce1"></div>
@@ -161,8 +163,6 @@
                 </div>
             </div>
         </div>
-        
-        <div id="error-message" class="alert alert-danger"></div>
     </div>
 </body>
 </html>

@@ -1,6 +1,8 @@
-# YouTube Comment Scraper
-
-A tool to easily scrape comments from YouTube videos based on search query parameters. [Try now!](https://scraper.seya.zip)
+<div align=center>
+   <img src="assets/thumbnail.png?raw=true" alt="YouTube comment scraper" />
+   <br /><br />
+   <p>A web tool to easily scrape comments from YouTube videos based on search query parameters. <a href="https://scraper.seya.zip">Try now!</a></p>
+</div>
 
 ## Features
 
@@ -117,52 +119,52 @@ The streaming API returns events in the following format:
 
 ```javascript
 // Initial information event
-{ 
-  "type": "info", 
-  "query": "your search query", 
-  "maxVideos": 20, 
-  "maxComments": 500 
+{
+  "type": "info",
+  "query": "your search query",
+  "maxVideos": 20,
+  "maxComments": 500
 }
 
 // Search metadata event
-{ 
-  "type": "search", 
-  "totalVideos": 42 
+{
+  "type": "search",
+  "totalVideos": 42
 }
 
 // Video metadata event
-{ 
-  "type": "video", 
+{
+  "type": "video",
   "video": { "id": "videoId", "title": "Video Title", "channel": "Channel Name" },
   "videoNumber": 1
 }
 
 // Comments data event (batched)
-{ 
-  "type": "comments", 
+{
+  "type": "comments",
   "data": [
     { "id": "videoId", "title": "Video Title", "channel": "Channel Name", "author": "Comment Author", "comment": "Comment text", "label": 0 },
     // Additional comments...
-  ] 
+  ]
 }
 
 // Progress update event
-{ 
-  "type": "progress", 
-  "videosProcessed": 5, 
+{
+  "type": "progress",
+  "videosProcessed": 5,
   "commentsFound": 250,
   "timeElapsed": 5.2
 }
 
 // Error event
-{ 
-  "type": "error", 
+{
+  "type": "error",
   "message": "Error message"
 }
 
 // Completion event
-{ 
-  "type": "complete", 
+{
+  "type": "complete",
   "videosScraped": 20,
   "totalComments": 500,
   "timeElapsed": 9.8,
@@ -192,12 +194,12 @@ The filename follows this pattern: `youtube-comments-[query]-[timestamp].csv`
 
 The YouTube Comment Scraper operates under different execution constraints:
 
-1. **Streaming API** (`/api/scraper`): 
+1. **Streaming API** (`/api/scraper`):
    - 10-second execution limit
    - Real-time comment delivery
    - Better for UI feedback and monitoring progress
 
-2. **Download API** (`/api/download`): 
+2. **Download API** (`/api/download`):
    - 30-second execution limit
    - Buffered response (waits until all scraping completes)
    - Returns more comments in a single request
