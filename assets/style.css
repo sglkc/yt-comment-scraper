@@ -301,6 +301,7 @@ h1::after {
 table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed; /* Add fixed table layout for better column control */
 }
 
 table th {
@@ -310,6 +311,22 @@ table th {
     text-align: left;
     position: sticky;
     top: 0;
+}
+
+/* Set specific widths for each column */
+table th:nth-child(1), 
+table td:nth-child(1) {
+    width: 120px; /* Limit author column width */
+}
+
+table th:nth-child(3), 
+table td:nth-child(3) {
+    width: 200px; /* Set width for video title column */
+}
+
+table th:nth-child(4), 
+table td:nth-child(4) {
+    width: 150px; /* Set width for channel column */
 }
 
 table tr {
@@ -323,8 +340,28 @@ table tr:hover {
 
 table td {
     padding: 1rem;
-    vertical-align: top;
+    vertical-align: middle; /* Change from top to middle vertical alignment */
     color: #444;
+    /* Add text truncation with ellipsis */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Comment column can expand more */
+table td:nth-child(2) {
+    white-space: normal; /* Allow text wrapping for comments */
+    line-height: 1.4;
+}
+
+/* Make title wrap to 2 lines max with ellipsis */
+table td:nth-child(3) {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Limit to 2 lines */
+    -webkit-box-orient: vertical;
+    line-height: 1.3;
+    max-height: 2.6em; /* 2 lines x line-height */
 }
 
 .alert {
