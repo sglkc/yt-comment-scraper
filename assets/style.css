@@ -287,6 +287,10 @@ h1::after {
     color: var(--light-color);
 }
 
+.result-stats .stat-item span {
+    color: var(--primary-color);
+}
+
 .table-container {
     max-height: 500px;
     overflow-y: auto;
