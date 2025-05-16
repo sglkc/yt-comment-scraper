@@ -77,14 +77,14 @@ The download endpoint collects all comments before responding with a complete CS
 
 Both endpoints accept the same parameters:
 
-| Parameter      | Type     | Description                                | Default         | Maximum |
-|----------------|----------|--------------------------------------------|-----------------|---------|
-| query          | string   | Search query for YouTube videos            | "deddy corbuzier" | -     |
-| maxVideos      | number   | Maximum number of videos to process        | 20              | 50      |
-| maxVidComments | number   | Maximum comments to retrieve per video     | 100             | 500     |
-| maxComments    | number   | Total maximum comments to retrieve         | 500             | 1000    |
-| uploadDate     | string   | Filter videos by upload date               | "week"          | -       |
-| sortBy         | string   | Sort videos by specific criteria           | "view_count"    | -       |
+| Parameter      | Type     | Description                                | Default         |
+|----------------|----------|--------------------------------------------|-----------------|
+| query          | string   | Search query for YouTube videos            | "news"          |
+| maxVideos      | number   | Maximum number of videos to process        | 20              |
+| maxVidComments | number   | Maximum comments to retrieve per video     | 100             |
+| maxComments    | number   | Total maximum comments to retrieve         | 500             |
+| uploadDate     | string   | Filter videos by upload date               | "week"          |
+| sortBy         | string   | Sort videos by specific criteria           | "view_count"    |
 
 #### Upload Date Options
 - `hour` - Last hour

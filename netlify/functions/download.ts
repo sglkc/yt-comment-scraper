@@ -18,8 +18,8 @@ interface CommentData {
 // Track execution time to respect the 30-second limit for buffered responses
 const startTime = () => {
   const start = Date.now();
-  // Allow 29.5 seconds max (giving 0.5s buffer)
-  const MAX_EXECUTION_TIME = 29500;
+  // Allow 29 seconds max (giving 1s buffer)
+  const MAX_EXECUTION_TIME = 29000;
   
   return {
     hasTimeLeft: () => {
@@ -129,7 +129,7 @@ function escapeCSV(value: string): string {
 export default async function handler(req: Request, context: Context) {
   // Get URL parameters
   const url = new URL(req.url);
-  const query = url.searchParams.get('query') || 'deddy corbuzier';
+  const query = url.searchParams.get('query') || 'berita terkini';
   const maxVideos = parseInt(url.searchParams.get('maxVideos') || '20', 10);
   const maxVidComments = parseInt(url.searchParams.get('maxVidComments') || '100', 10);
   const maxComments = parseInt(url.searchParams.get('maxComments') || '500', 10);
@@ -137,18 +137,18 @@ export default async function handler(req: Request, context: Context) {
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
   
   // Check for valid parameters
-  if (maxVideos > 50 || maxVidComments > 500 || maxComments > 1000) {
-    return new Response(
-      JSON.stringify({ 
-        error: 'Parameter limits exceeded',
-        message: 'For API usage: maxVideos ≤ 50, maxVidComments ≤ 500, maxComments ≤ 1000'
-      }),
-      {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
-  }
+  // if (maxVideos > 50 || maxVidComments > 500 || maxComments > 1000) {
+  //   return new Response(
+  //     JSON.stringify({ 
+  //       error: 'Parameter limits exceeded',
+  //       message: 'For API usage: maxVideos ≤ 50, maxVidComments ≤ 500, maxComments ≤ 1000'
+  //     }),
+  //     {
+  //       status: 400,
+  //       headers: { 'Content-Type': 'application/json' }
+  //     }
+  //   );
+  // }
 
   const timer = startTime();
   
