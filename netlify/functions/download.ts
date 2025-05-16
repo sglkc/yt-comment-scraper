@@ -18,9 +18,9 @@ interface CommentData {
 // Track execution time to respect the 30-second limit for buffered responses
 const startTime = () => {
   const start = Date.now();
-  // Allow 29 seconds max (giving 1s buffer)
-  const MAX_EXECUTION_TIME = 29000;
-  
+  // Allow 9 seconds max (giving 1s buffer)
+  const MAX_EXECUTION_TIME = 9000;
+
   return {
     hasTimeLeft: () => {
       return (Date.now() - start) < MAX_EXECUTION_TIME;
@@ -38,7 +38,7 @@ async function scrapeComments(
   comments: any,
   metadata: { id: string, channel: string, title: string },
   maxVidComments: number,
-  maxComments: number, 
+  maxComments: number,
   counter: { comments: number },
   dataset: CommentData[],
   timer: { hasTimeLeft: () => boolean, getElapsedTime: () => number }
@@ -54,7 +54,7 @@ async function scrapeComments(
       const text = comment?.content?.toString();
 
       if (!author || !text) continue;
-      
+
       const commentData: CommentData = {
         id: metadata.id,
         title: metadata.title,
@@ -63,10 +63,10 @@ async function scrapeComments(
         comment: text,
         label: 0
       };
-      
+
       dataset.push(commentData);
       counter.comments++;
-      
+
       if (dataset.length >= maxComments) {
         return 0;
       }
@@ -90,10 +90,10 @@ async function scrapeComments(
 function convertToCSV(data: CommentData[]): string {
   // Define headers in the requested order
   const headers = ['label', 'author', 'comment', 'id', 'channel', 'title'];
-  
+
   // Create CSV header row
   let csv = headers.join(',') + '\n';
-  
+
   // Add data rows
   data.forEach(item => {
     const row = [
@@ -104,10 +104,10 @@ function convertToCSV(data: CommentData[]): string {
       escapeCSV(item.channel),
       escapeCSV(item.title)
     ];
-    
+
     csv += row.join(',') + '\n';
   });
-  
+
   return csv;
 }
 
@@ -119,7 +119,7 @@ function escapeCSV(value: string): string {
   // If value contains comma, quote, or newline, wrap in quotes and escape internal quotes
   const needsQuotes = /[",\n\r]/.test(value);
   value = value.replace(/"/g, '""'); // Escape quotes by doubling them
-  
+
   return needsQuotes ? `"${value}"` : value;
 }
 
@@ -135,11 +135,11 @@ export default async function handler(req: Request, context: Context) {
   const maxComments = parseInt(url.searchParams.get('maxComments') || '500', 10);
   const uploadDate = url.searchParams.get('uploadDate') as UploadDate || 'week';
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
-  
+
   // Check for valid parameters
   // if (maxVideos > 50 || maxVidComments > 500 || maxComments > 1000) {
   //   return new Response(
-  //     JSON.stringify({ 
+  //     JSON.stringify({
   //       error: 'Parameter limits exceeded',
   //       message: 'For API usage: maxVideos ≤ 50, maxVidComments ≤ 500, maxComments ≤ 1000'
   //     }),
@@ -151,7 +151,7 @@ export default async function handler(req: Request, context: Context) {
   // }
 
   const timer = startTime();
-  
+
   try {
     // Initialize dataset and counters
     const dataset: CommentData[] = [];
@@ -160,7 +160,7 @@ export default async function handler(req: Request, context: Context) {
 
     // Create Innertube client
     const innertube = await Innertube.create({ lang: 'id', location: 'ID' });
-    
+
     // Search for videos
     let search = await innertube.search(query, {
       type: 'video',
@@ -170,11 +170,11 @@ export default async function handler(req: Request, context: Context) {
 
     // Process search results
     let videosProcessed = 0;
-    
+
     while (search && videosProcessed < maxVideos && commentsRemaining > 0 && timer.hasTimeLeft()) {
       for (const video of search.videos) {
         if (commentsRemaining <= 0 || videosProcessed >= maxVideos || !timer.hasTimeLeft()) break;
-        
+
         // Skip certain video types that don't have the required properties
         if (
           video instanceof YTNodes.ShortsLockupView ||
@@ -182,7 +182,7 @@ export default async function handler(req: Request, context: Context) {
           video instanceof YTNodes.WatchCardCompactVideo ||
           video instanceof YTNodes.ReelItem
         ) continue;
-        
+
         // Ensure video has required properties
         if (!video.id || !video.title || !video.author) continue;
 
@@ -196,20 +196,20 @@ export default async function handler(req: Request, context: Context) {
           // Get comments for the video
           const comments = await innertube.getComments(video.id, 'NEWEST_FIRST');
           counters.comments = 0;
-          
+
           // Scrape comments from the video
           commentsRemaining = await scrapeComments(
-            comments, 
-            metadata, 
-            maxVidComments, 
-            commentsRemaining, 
-            counters, 
+            comments,
+            metadata,
+            maxVidComments,
+            commentsRemaining,
+            counters,
             dataset,
             timer
           );
-          
+
           videosProcessed++;
-          
+
         } catch (error) {
           console.error(`Error processing video ${video.id}:`, error instanceof Error ? error.message : String(error));
           continue;
@@ -218,7 +218,7 @@ export default async function handler(req: Request, context: Context) {
 
       // Check if we need to fetch more videos
       if (!search.has_continuation || commentsRemaining <= 0 || videosProcessed >= maxVideos || !timer.hasTimeLeft()) break;
-      
+
       // Get next page of search results
       search = await search.getContinuation();
     }
@@ -226,7 +226,7 @@ export default async function handler(req: Request, context: Context) {
     // No comments found
     if (dataset.length === 0) {
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'No data found',
           message: 'No comments could be found for the given search parameters.'
         }),
@@ -239,7 +239,7 @@ export default async function handler(req: Request, context: Context) {
 
     // Convert dataset to CSV
     const csvContent = convertToCSV(dataset);
-    
+
     // Create a clean filename from the query
     const sanitizedQuery = query.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -255,9 +255,9 @@ export default async function handler(req: Request, context: Context) {
     });
   } catch (error) {
     return new Response(
-      JSON.stringify({ 
-        error: 'An error occurred while scraping', 
-        message: error instanceof Error ? error.message : String(error) 
+      JSON.stringify({
+        error: 'An error occurred while scraping',
+        message: error instanceof Error ? error.message : String(error)
       }),
       {
         status: 500,

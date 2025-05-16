@@ -10,7 +10,7 @@ const startTime = () => {
   const start = Date.now();
   // Allow 9 seconds max (giving 1s buffer)
   const MAX_EXECUTION_TIME = 9000;
-  
+
   return {
     hasTimeLeft: () => {
       return (Date.now() - start) < MAX_EXECUTION_TIME;
@@ -28,7 +28,7 @@ async function scrapeComments(
   comments: any,
   metadata: { id: string, channel: string, title: string },
   maxVidComments: number,
-  maxComments: number, 
+  maxComments: number,
   counter: { comments: number },
   controller: ReadableStreamDefaultController,
   encoder: TextEncoder,
@@ -38,7 +38,7 @@ async function scrapeComments(
     // Process comments in batches for better streaming experience
     let batch: any[] = [];
     const BATCH_SIZE = 5;
-    
+
     for (const { comment } of comments.contents) {
       if (counter.comments >= maxVidComments || !timer.hasTimeLeft()) {
         counter.comments = 0;
@@ -52,17 +52,17 @@ async function scrapeComments(
       const text = comment?.content?.toString();
 
       if (!author || !text) continue;
-      
+
       const commentData = { ...metadata, author, comment: text, label: 0 };
       batch.push(commentData);
       counter.comments++;
-      
+
       // Send batch when it reaches the batch size
       if (batch.length >= BATCH_SIZE) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'comments', data: batch })}\n\n`));
         maxComments -= batch.length;
         batch = [];
-        
+
         if (maxComments <= 0) {
           return 0;
         }
@@ -99,11 +99,11 @@ export default async function handler(req: Request, context: Context) {
   const maxComments = parseInt(url.searchParams.get('maxComments') || '500', 10);
   const uploadDate = url.searchParams.get('uploadDate') as UploadDate || 'week';
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
-  
+
   // Check for valid parameters
   // if (maxVideos > 50 || maxVidComments > 500 || maxComments > 1000) {
   //   return new Response(
-  //     JSON.stringify({ 
+  //     JSON.stringify({
   //       error: 'Parameter limits exceeded',
   //       message: 'For API usage: maxVideos ≤ 50, maxVidComments ≤ 500, maxComments ≤ 1000'
   //     }),
@@ -116,7 +116,7 @@ export default async function handler(req: Request, context: Context) {
 
   const encoder = new TextEncoder();
   const timer = startTime();
-  
+
   // Setup execution context
   const counters = { comments: 0, videos: 0 };
   let commentsRemaining = maxComments;
@@ -126,36 +126,36 @@ export default async function handler(req: Request, context: Context) {
     async start(controller) {
       try {
         // Initial metadata
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-          type: 'info', 
-          query, 
-          maxVideos, 
-          maxComments: commentsRemaining 
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'info',
+          query,
+          maxVideos,
+          maxComments: commentsRemaining
         })}\n\n`));
 
         // Create Innertube client
         const innertube = await Innertube.create({ lang: 'id', location: 'ID' });
-        
+
         // Search for videos
         let search = await innertube.search(query, {
           type: 'video',
           upload_date: uploadDate,
           sort_by: sortBy
         });
-        
+
         // Stream search metadata to the client
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-          type: 'search', 
-          totalVideos: search.videos.length 
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'search',
+          totalVideos: search.videos.length
         })}\n\n`));
 
         // Process search results
         let videosProcessed = 0;
-        
+
         while (search && videosProcessed < maxVideos && commentsRemaining > 0 && timer.hasTimeLeft()) {
           for (const video of search.videos) {
             if (commentsRemaining <= 0 || videosProcessed >= maxVideos || !timer.hasTimeLeft()) break;
-            
+
             // Skip certain video types that don't have the required properties
             if (
               video instanceof YTNodes.ShortsLockupView ||
@@ -163,7 +163,7 @@ export default async function handler(req: Request, context: Context) {
               video instanceof YTNodes.WatchCardCompactVideo ||
               video instanceof YTNodes.ReelItem
             ) continue;
-            
+
             // Ensure video has required properties
             if (!video.id || !video.title || !video.author) continue;
 
@@ -174,8 +174,8 @@ export default async function handler(req: Request, context: Context) {
             };
 
             // Stream video metadata
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-              type: 'video', 
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+              type: 'video',
               video: metadata,
               videoNumber: videosProcessed + 1
             })}\n\n`));
@@ -184,33 +184,33 @@ export default async function handler(req: Request, context: Context) {
               // Get comments for the video
               const comments = await innertube.getComments(video.id, 'NEWEST_FIRST');
               counters.comments = 0;
-              
+
               // Scrape comments from the video
               commentsRemaining = await scrapeComments(
-                comments, 
-                metadata, 
-                maxVidComments, 
-                commentsRemaining, 
-                counters, 
+                comments,
+                metadata,
+                maxVidComments,
+                commentsRemaining,
+                counters,
                 controller,
                 encoder,
                 timer
               );
-              
+
               videosProcessed++;
-              
+
               // Stream progress update
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-                type: 'progress', 
-                videosProcessed, 
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: 'progress',
+                videosProcessed,
                 commentsFound: maxComments - commentsRemaining,
                 timeElapsed: timer.getElapsedTime() / 1000
               })}\n\n`));
-              
+
             } catch (error) {
               // Stream error info
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-                type: 'error', 
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: 'error',
                 message: `Error processing video ${video.id}: ${error instanceof Error ? error.message : String(error)}`
               })}\n\n`));
               continue;
@@ -219,25 +219,25 @@ export default async function handler(req: Request, context: Context) {
 
           // Check if we need to fetch more videos
           if (!search.has_continuation || commentsRemaining <= 0 || videosProcessed >= maxVideos || !timer.hasTimeLeft()) break;
-          
+
           // Get next page of search results
           search = await search.getContinuation();
         }
 
         // Send completion message with summary
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-          type: 'complete', 
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'complete',
           videosScraped: videosProcessed,
           totalComments: maxComments - commentsRemaining,
           timeElapsed: timer.getElapsedTime() / 1000,
           timedOut: !timer.hasTimeLeft()
         })}\n\n`));
-        
+
       } catch (error) {
         // Send error message
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-          type: 'error', 
-          message: error instanceof Error ? error.message : String(error) 
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: 'error',
+          message: error instanceof Error ? error.message : String(error)
         })}\n\n`));
       } finally {
         // Close the stream
