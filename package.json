@@ -1,10 +1,20 @@
 {
-	"main": "scraper.js",
 	"type": "module",
+	"scripts": {
+		"build": "tsc",
+		"start": "tsx scraper.ts",
+		"reader": "tsx reader.ts",
+		"merger": "tsx merger.ts"
+	},
 	"dependencies": {
 		"@netlify/functions": "^3.1.8",
 		"csv-parser": "^3.2.0",
 		"csv-writer": "^1.6.0",
 		"youtubei.js": "^13.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^20.11.0",
+		"tsx": "^4.19.4",
+		"typescript": "^5.3.0"
 	}
 }
