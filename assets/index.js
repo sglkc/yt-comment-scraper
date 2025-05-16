@@ -92,7 +92,7 @@ const updateRealTimeStats = (data) => {
     } else if (data.type === 'video') {
         videoEl.textContent = data.video?.title || '-';
     } else if (data.type === 'complete') {
-        statusEl.textContent = data.timedOut ? 'Timed Out (30s limit)' : 'Complete!';
+        statusEl.textContent = data.timedOut ? 'Timed Out (10s limit)' : 'Complete!';
         timeEl.textContent = `${data.timeElapsed.toFixed(1)}s`;
         videosEl.textContent = data.videosScraped;
         commentsEl.textContent = data.totalComments;

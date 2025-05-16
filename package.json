@@ -1,4 +1,8 @@
 {
+	"name": "yt-scraper",
+	"private": true,
+	"description": "YouTube comments scraper using youtubei.js and Netlify functions",
+	"author": "sglkc",
 	"type": "module",
 	"scripts": {
 		"build": "tsc",
