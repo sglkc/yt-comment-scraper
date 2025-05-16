@@ -368,6 +368,93 @@
                 left: 200%;
             }
         }
+
+        /* Real-time stats styles */
+        .real-time-stats {
+            display: none;
+            background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            color: white;
+            box-shadow: 0 8px 20px rgba(108, 92, 231, 0.2);
+            position: relative;
+            overflow: hidden;
+            animation: pulse 2s infinite;
+        }
+
+        .real-time-stats::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+            pointer-events: none;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(108, 92, 231, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(108, 92, 231, 0);
+            }
+        }
+
+        .real-time-stats .stat-item {
+            padding: 0.5rem;
+            text-align: center;
+            flex: 1 0 18%;
+            min-width: 120px;
+        }
+
+        .real-time-stats .stat-item strong {
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+
+        .real-time-stats .stat-item span {
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: block;
+            margin-top: 0.3rem;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Make the stream-status indicator change color based on status */
+        #stream-status {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        #stream-status:before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            background-color: #fdcb6e;
+        }
+
+        #stream-status.connected:before {
+            background-color: #00b894;
+        }
+
+        #stream-status.error:before {
+            background-color: #d63031;
+        }
     </style>
 </head>
 <body>
