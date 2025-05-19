@@ -23,14 +23,14 @@ export default async function handler(req: Request, context: Context) {
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
 
   // Get metadata configuration
-  const selectedFields = url.searchParams.get('selectedFields') ? 
-    url.searchParams.get('selectedFields')!.split(',') as MetadataField[] : 
+  const selectedFields = url.searchParams.get('selectedFields') ?
+    url.searchParams.get('selectedFields')!.split(',') as MetadataField[] :
     ['label', 'author', 'comment', 'id', 'channel', 'title'];
-  
-  const columnOrder = url.searchParams.get('columnOrder') ? 
-    url.searchParams.get('columnOrder')!.split(',') as MetadataField[] : 
+
+  const columnOrder = url.searchParams.get('columnOrder') ?
+    url.searchParams.get('columnOrder')!.split(',') as MetadataField[] :
     selectedFields;
-    
+
   const metadataConfig: MetadataConfig = {
     selectedFields,
     columnOrder
@@ -62,7 +62,7 @@ export default async function handler(req: Request, context: Context) {
                 maxComments
               })}\n\n`));
             },
-            
+
             onSearch: async (search) => {
               // Stream search metadata to the client
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -70,7 +70,7 @@ export default async function handler(req: Request, context: Context) {
                 totalVideos: search.videos.length
               })}\n\n`));
             },
-            
+
             onVideo: async (metadata, videoNumber) => {
               // Stream video metadata
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -79,7 +79,7 @@ export default async function handler(req: Request, context: Context) {
                 videoNumber
               })}\n\n`));
             },
-            
+
             onComments: async (comments, metadata) => {
               // Filter comments to only include selected fields
               if (metadataConfig.selectedFields.length < Object.keys(comments[0] || {}).length) {
@@ -93,14 +93,14 @@ export default async function handler(req: Request, context: Context) {
                   return filteredComment as CommentData;
                 });
               }
-              
+
               // Stream comments in batches
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                 type: 'comments',
                 data: comments
               })}\n\n`));
             },
-            
+
             onProgress: async (stats) => {
               // Stream progress update
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -110,7 +110,7 @@ export default async function handler(req: Request, context: Context) {
                 timeElapsed: stats.timeElapsed
               })}\n\n`));
             },
-            
+
             onError: async (error, context) => {
               // Stream error info
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
@@ -118,7 +118,7 @@ export default async function handler(req: Request, context: Context) {
                 message: `Error ${context ? 'in ' + context : ''}: ${error.message}`
               })}\n\n`));
             },
-            
+
             onComplete: async (stats) => {
               // Send completion message with summary
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({

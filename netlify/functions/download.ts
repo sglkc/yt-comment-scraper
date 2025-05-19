@@ -2,11 +2,11 @@ import { Context } from "@netlify/functions";
 import {
   scrapeYouTubeComments,
   convertToCSV,
-  SortBy, 
+  SortBy,
   UploadDate,
   MetadataField,
   MetadataConfig
-} from '../utils/youtube-scraper';
+} from '../utils/youtube-scraper.js';
 
 /**
  * API Download function handler that returns a complete CSV file
@@ -23,14 +23,14 @@ export default async function handler(req: Request, context: Context) {
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
 
   // Get metadata configuration
-  const selectedFields = url.searchParams.get('selectedFields') ? 
-    url.searchParams.get('selectedFields')!.split(',') as MetadataField[] : 
+  const selectedFields = url.searchParams.get('selectedFields') ?
+    url.searchParams.get('selectedFields')!.split(',') as MetadataField[] :
     ['label', 'author', 'comment', 'id', 'channel', 'title'];
-  
-  const columnOrder = url.searchParams.get('columnOrder') ? 
-    url.searchParams.get('columnOrder')!.split(',') as MetadataField[] : 
+
+  const columnOrder = url.searchParams.get('columnOrder') ?
+    url.searchParams.get('columnOrder')!.split(',') as MetadataField[] :
     selectedFields;
-    
+
   const metadataConfig: MetadataConfig = {
     selectedFields,
     columnOrder
@@ -46,7 +46,7 @@ export default async function handler(req: Request, context: Context) {
       {
         query,
         maxVideos,
-        maxVidComments, 
+        maxVidComments,
         maxComments,
         uploadDate,
         sortBy
@@ -65,7 +65,7 @@ export default async function handler(req: Request, context: Context) {
               return filteredComment;
             });
           }
-          
+
           allComments.push(...comments);
         },
         onError: async (error) => {
@@ -76,10 +76,10 @@ export default async function handler(req: Request, context: Context) {
 
     // Generate CSV from all collected comments
     const csv = convertToCSV(allComments, metadataConfig);
-    
+
     // Sanitize filename - replace spaces and special characters
     const sanitizedQuery = query.replace(/[^a-z0-9]/gi, '-').toLowerCase();
-    
+
     // Return the CSV file
     return new Response(csv, {
       headers: {
@@ -88,11 +88,11 @@ export default async function handler(req: Request, context: Context) {
         'Cache-Control': 'no-cache'
       }
     });
-    
+
   } catch (error) {
     // Handle errors
-    return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : String(error) 
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : String(error)
     }), {
       status: 500,
       headers: {
