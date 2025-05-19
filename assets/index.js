@@ -59,7 +59,7 @@ function initMetadataUI() {
 function updateSelectedFields() {
     const checkboxes = document.querySelectorAll('input[name="metadata-field"]:checked');
     selectedFields = Array.from(checkboxes).map(cb => cb.value);
-    
+
     // Make sure we have at least one field selected
     if (selectedFields.length === 0) {
         selectedFields = ['author', 'comment'];
@@ -69,17 +69,17 @@ function updateSelectedFields() {
             }
         });
     }
-    
+
     // Update column order to include only selected fields
     columnOrder = columnOrder.filter(field => selectedFields.includes(field));
-    
+
     // Add any newly selected fields that aren't in the column order
     selectedFields.forEach(field => {
         if (!columnOrder.includes(field)) {
             columnOrder.push(field);
         }
     });
-    
+
     // Update the column order UI
     updateColumnOrderUI();
 }
@@ -88,7 +88,7 @@ function updateSelectedFields() {
 function updateColumnOrderUI() {
     // Clear the container
     columnOrderContainer.innerHTML = '';
-    
+
     // Add column items
     columnOrder.forEach(field => {
         const item = document.createElement('div');
@@ -96,13 +96,13 @@ function updateColumnOrderUI() {
         item.draggable = true;
         item.dataset.field = field;
         item.textContent = fieldLabels[field] || field;
-        
+
         // Add drag event listeners
         item.addEventListener('dragstart', handleDragStart);
         item.addEventListener('dragover', handleDragOver);
         item.addEventListener('drop', handleDrop);
         item.addEventListener('dragend', handleDragEnd);
-        
+
         columnOrderContainer.appendChild(item);
     });
 }
@@ -132,23 +132,23 @@ function handleDragOver(e) {
 
 function handleDrop(e) {
     e.preventDefault();
-    
+
     if (draggedItem === e.target) return;
-    
+
     // Get the source and target fields
     const sourceField = draggedItem.dataset.field;
     const targetField = e.target.dataset.field;
-    
+
     // Find their positions in the order array
     const sourceIndex = columnOrder.indexOf(sourceField);
     const targetIndex = columnOrder.indexOf(targetField);
-    
+
     // Remove the source field from its position
     columnOrder.splice(sourceIndex, 1);
-    
+
     // Insert it at the target position
     columnOrder.splice(targetIndex, 0, sourceField);
-    
+
     // Update the UI
     updateColumnOrderUI();
 }
@@ -172,12 +172,12 @@ function validateForm() {
 // Handle direct CSV download
 downloadCsvBtn.addEventListener('click', (e) => {
     e.preventDefault();
-    
+
     // Validate the form
     if (!validateForm()) {
         return;
     }
-    
+
     // Get form values
     const formData = new FormData(form);
     const params = new URLSearchParams();
@@ -185,7 +185,7 @@ downloadCsvBtn.addEventListener('click', (e) => {
     for (const [key, value] of formData.entries()) {
         params.append(key, value);
     }
-    
+
     // Add metadata fields and column order parameters
     params.append('selectedFields', selectedFields.join(','));
     params.append('columnOrder', columnOrder.join(','));
@@ -200,10 +200,10 @@ downloadCsvBtn.addEventListener('click', (e) => {
         const iframe = document.createElement('iframe');
         iframe.style.display = 'none';
         document.body.appendChild(iframe);
-        
+
         // Set iframe src to download endpoint with params
-        iframe.src = `/api/download?${params.toString()}`;
-        
+        iframe.src = `/.netlify/functions/download?${params.toString()}`;
+
         // Reset button state after a delay
         setTimeout(() => {
             downloadCsvBtn.disabled = false;
@@ -239,7 +239,7 @@ streamCsvBtn.addEventListener('click', async (e) => {
     for (const [key, value] of formData.entries()) {
         params.append(key, value);
     }
-    
+
     // Add metadata fields and column order parameters
     params.append('selectedFields', selectedFields.join(','));
     params.append('columnOrder', columnOrder.join(','));
@@ -252,7 +252,7 @@ streamCsvBtn.addEventListener('click', async (e) => {
 
     try {
         // Set up SSE connection
-        const url = `/api/scraper?${params.toString()}`;
+        const url = `/.netlify/functions/scraper?${params.toString()}`;
         const eventSource = new EventSource(url);
         document.getElementById('result-query').textContent = formData.get('query');
 
@@ -350,7 +350,7 @@ function processComments(comments) {
 // Update table header based on selected columns
 function updateTableHeader() {
     const headerRow = document.createElement('tr');
-    
+
     columnOrder.forEach(field => {
         if (selectedFields.includes(field)) {
             const th = document.createElement('th');
@@ -358,7 +358,7 @@ function updateTableHeader() {
             headerRow.appendChild(th);
         }
     });
-    
+
     commentsTableHeader.innerHTML = '';
     commentsTableHeader.appendChild(headerRow);
 }
