@@ -242,7 +242,6 @@ h1::after {
     display: none;
     text-align: center;
     margin: 4rem 0;
-    display: grid;
     grid-template-rows: auto auto auto;
     gap: 1.5rem;
     justify-items: center;
