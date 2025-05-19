@@ -222,17 +222,13 @@ h1::after {
     flex: 1;
 }
 
-#export-csv {
-    width: 100%;
-}
-
 /* Make buttons full width on mobile */
 @media (max-width: 768px) {
     .button-group {
         flex-direction: column;
         gap: 0.75rem;
     }
-    
+
     .button-group .btn {
         width: 100%;
     }
@@ -271,9 +267,9 @@ h1::after {
 }
 
 @keyframes sk-bouncedelay {
-    0%, 80%, 100% { 
+    0%, 80%, 100% {
         transform: scale(0);
-    } 40% { 
+    } 40% {
         transform: scale(1.0);
     }
 }
@@ -343,17 +339,17 @@ table th {
 }
 
 /* Set specific widths for each column */
-table th:nth-child(1), 
+table th:nth-child(1),
 table td:nth-child(1) {
     width: 120px; /* Limit author column width */
 }
 
-table th:nth-child(3), 
+table th:nth-child(3),
 table td:nth-child(3) {
     width: 200px; /* Set width for video title column */
 }
 
-table th:nth-child(4), 
+table th:nth-child(4),
 table td:nth-child(4) {
     width: 150px; /* Set width for channel column */
 }
@@ -412,7 +408,7 @@ table td:nth-child(2) {
     width: 50%;
     height: 100%;
     background: linear-gradient(
-        to right, 
+        to right,
         rgba(255, 255, 255, 0) 0%,
         rgba(255, 255, 255, 0.2) 50%,
         rgba(255, 255, 255, 0) 100%
@@ -565,18 +561,18 @@ table td:nth-child(2) {
         width: calc(100% + 2rem);
         border-radius: 0;
     }
-    
-    table th:nth-child(1), 
+
+    table th:nth-child(1),
     table td:nth-child(1) {
         width: 90px; /* Smaller author column on mobile */
     }
-    
-    table th:nth-child(3), 
+
+    table th:nth-child(3),
     table td:nth-child(3) {
         width: 130px; /* Smaller video title column on mobile */
     }
-    
-    table th:nth-child(4), 
+
+    table th:nth-child(4),
     table td:nth-child(4) {
         width: 100px; /* Smaller channel column on mobile */
     }

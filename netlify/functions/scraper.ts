@@ -68,6 +68,7 @@ export default async function handler(req: Request, context: Context) {
             maxComments,
             uploadDate,
             sortBy,
+            timer: 8000,
             startVideoIndex,
             continuationToken,
             lastVideoId,
