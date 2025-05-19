@@ -20,8 +20,8 @@ let columnOrder = [...selectedFields];
 let scrapingState = {
     lastQuery: '',
     lastVideoIndex: 0,
-    hasMoreComments: false,
     lastVideoId: '',
+    commentContinuationData: null, // Store comment continuation data from YouTube's API
     searchParams: null,
     continuationPossible: false
 };
@@ -345,6 +345,8 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         scrapingState = {
                             lastQuery: formData.get('query'),
                             lastVideoIndex: data.lastVideoIndex || 0,
+                            lastVideoId: data.lastVideoId,
+                            commentContinuationData: data.commentContinuationData,
                             continuationToken: data.continuationToken,
                             continuationPossible: !!data.continuationPossible,
                             searchParams: new URLSearchParams(params.toString())
@@ -354,7 +356,12 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         const continueBtn = document.getElementById('continue-scraping');
                         if (data.continuationPossible) {
                             continueBtn.style.display = 'inline-block';
-                            showMessage(`Scraping complete! Found ${data.totalComments} comments from ${data.videosScraped} videos. You can continue scraping to get more comments.`, false);
+
+                            const continueMessage = data.commentContinuationData
+                                ? `Scraping complete! Found ${data.totalComments} comments. You can continue scraping comments from the same video.`
+                                : `Scraping complete! Found ${data.totalComments} comments. You can continue with the next video.`;
+
+                            showMessage(continueMessage, false);
                         } else {
                             continueBtn.style.display = 'none';
                             showMessage(`Scraping complete! Found ${data.totalComments} comments from ${data.videosScraped} videos.`, false);
@@ -433,6 +440,15 @@ document.getElementById('continue-scraping').addEventListener('click', () => {
 
     if (scrapingState.continuationToken) {
         params.set('continuationToken', scrapingState.continuationToken);
+    }
+
+    if (scrapingState.lastVideoId) {
+        params.set('lastVideoId', scrapingState.lastVideoId);
+    }
+
+    // Add comment continuation data if available - need to stringify as it's a complex object
+    if (scrapingState.commentContinuationData) {
+        params.set('commentContinuation', JSON.stringify(scrapingState.commentContinuationData));
     }
 
     // Show loading state

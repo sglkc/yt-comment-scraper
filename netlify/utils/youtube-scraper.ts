@@ -4,6 +4,16 @@ import { Innertube, YTNodes } from 'youtubei.js';
 export type UploadDate = 'hour' | 'today' | 'week' | 'month' | 'year' | 'all';
 export type SortBy = 'relevance' | 'rating' | 'upload_date' | 'view_count';
 
+// Comment continuation data structure
+export interface CommentContinuationData {
+  endpoint: {
+    metadata: {
+      api_url: string;
+    };
+    payload: any;
+  };
+}
+
 // Available metadata fields for videos
 export type VideoField =
   'id' | 'title' | 'channel' | 'channel_id' | 'description' | 'view_count' |
@@ -252,7 +262,9 @@ export async function scrapeYouTubeComments<T>(
     sortBy: SortBy;
     timer?: number;
     startVideoIndex?: number; // The video index to start from for continuation
-    continuationToken?: string; // Optional token to continue from a specific search page
+    continuationToken?: string; // Token to continue searching videos
+    commentContinuationData?: CommentContinuationData | null; // Comment continuation data for efficient comment retrieval
+    lastVideoId?: string | null; // ID of the last video processed
   },
   handlers: {
     onStart?: () => Promise<void>;
@@ -267,14 +279,18 @@ export async function scrapeYouTubeComments<T>(
       timeElapsed: number,
       timedOut: boolean,
       lastVideoIndex: number,
-      continuationToken?: string
+      continuationToken?: string,
+      commentContinuationData?: CommentContinuationData | null,
+      lastVideoId?: string | null
     }) => Promise<void>;
   }
 ): Promise<{ comments: CommentData[], videosScraped: number }> {
   const timer = createTimer(params.timer);
   const allComments: CommentData[] = [];
-  let videosProcessed = 0;
+  let videosProcessed = params.startVideoIndex || 0;
   let commentsRemaining = params.maxComments;
+  let currentVideoId = params.lastVideoId;
+  let commentContinuationData = params.commentContinuationData;
 
   try {
     if (handlers.onStart) {
@@ -290,13 +306,112 @@ export async function scrapeYouTubeComments<T>(
       sortBy: params.sortBy
     });
 
-    if (params.continuationToken) {
-      // If continuation token is provided, use it to fetch the next page of results
-      search = await search.getContinuation(params.continuationToken);
+    // Skip to specific video index if provided
+    if (params.startVideoIndex && params.startVideoIndex > 0) {
+      if (params.continuationToken) {
+        // Use the continuation token to fetch the exact search results page
+        search = await search.getContinuation(params.continuationToken);
+      } else {
+        // Skip to the approximate position by continuing search
+        let videoCount = search.videos.length;
+        const targetIndex = Math.floor(params.startVideoIndex / videoCount);
+
+        for (let i = 0; i < targetIndex && search.has_continuation; i++) {
+          search = await search.getContinuation();
+        }
+      }
     }
 
     if (handlers.onSearch) {
       await handlers.onSearch(search);
+    }
+
+    // If we have comment continuation data, first try to continue with that
+    if (commentContinuationData && currentVideoId) {
+      try {
+        // Find the metadata for the current video
+        let metadata: VideoMetadata | null = null;
+        for (const video of search.videos) {
+          if (video.id === currentVideoId && isValidVideoNode(video)) {
+            metadata = extractVideoMetadata(video);
+            break;
+          }
+        }
+
+        // If we couldn't find the video in current results, create minimal metadata
+        if (!metadata) {
+          metadata = {
+            id: currentVideoId,
+            title: 'Continuing Comments',
+            channel: 'Unknown'
+          };
+        }
+
+        // Fetch comments using continuation data
+        const comments = await fetchCommentsContinuation(innertube, commentContinuationData);
+        const videoComments: CommentData[] = [];
+        const counter = { comments: 0 };
+
+        // Process comments
+        let batchComments: CommentData[] = [];
+
+        for (const { comment } of comments.contents || []) {
+          if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
+            break;
+          }
+
+          const commentData = extractCommentData(comment, metadata);
+          if (commentData) {
+            videoComments.push(commentData);
+            batchComments.push(commentData);
+            allComments.push(commentData);
+            counter.comments++;
+            commentsRemaining--;
+
+            // Process comments in batches
+            if (batchComments.length >= 5) {
+              if (handlers.onComments) {
+                await handlers.onComments(batchComments, metadata);
+              }
+              batchComments = [];
+            }
+
+            if (commentsRemaining <= 0) break;
+          }
+        }
+
+        // Process any remaining comments in the batch
+        if (batchComments.length > 0 && handlers.onComments) {
+          await handlers.onComments(batchComments, metadata);
+        }
+
+        // Update commentContinuationData for the next page
+        if (comments.has_continuation && timer.hasTimeLeft() && commentsRemaining > 0) {
+          commentContinuationData = extractCommentContinuationData(comments);
+        } else {
+          commentContinuationData = null;
+          // Move to the next video if we're done with this one
+          videosProcessed++;
+        }
+
+        if (handlers.onProgress) {
+          await handlers.onProgress({
+            videosProcessed,
+            commentsFound: params.maxComments - commentsRemaining,
+            timeElapsed: timer.getElapsedTime() / 1000
+          });
+        }
+      } catch (error) {
+        // If continuing comments fails, reset continuation data and proceed with next video
+        if (handlers.onError) {
+          await handlers.onError(
+            error instanceof Error ? error : new Error(String(error)),
+            `continuation for video ${currentVideoId}`
+          );
+        }
+        commentContinuationData = null;
+        currentVideoId = null;
+      }
     }
 
     // Process search results
@@ -306,7 +421,11 @@ export async function scrapeYouTubeComments<T>(
 
         if (!isValidVideoNode(video)) continue;
 
+        // Skip videos we've already processed
+        if (currentVideoId === video.id) continue;
+
         const metadata = extractVideoMetadata(video);
+        currentVideoId = video.id;
 
         if (handlers.onVideo) {
           await handlers.onVideo(metadata, videosProcessed + 1);
@@ -351,59 +470,78 @@ export async function scrapeYouTubeComments<T>(
             await handlers.onComments(batchComments, metadata);
           }
 
-          // Get continuations if needed and time permits
-          let currentComments = comments;
-          while (
-            counter.comments < params.maxVidComments &&
-            commentsRemaining > 0 &&
-            timer.hasTimeLeft() &&
-            currentComments.has_continuation
-          ) {
-            try {
-              const continuation = await currentComments.getContinuation();
-              currentComments = continuation;
+          // Check if we have more comments to fetch and time left
+          if (comments.has_continuation && timer.hasTimeLeft() && commentsRemaining > 0 && counter.comments < params.maxVidComments) {
+            // Save continuation data instead of iterating through all continuations
+            commentContinuationData = extractCommentContinuationData(comments);
 
-              batchComments = [];
-
-              for (const { comment } of continuation.contents) {
-                if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
-                  break;
-                }
-
-                const commentData = extractCommentData(comment, metadata);
-                if (commentData) {
-                  videoComments.push(commentData);
-                  batchComments.push(commentData);
-                  allComments.push(commentData);
-                  counter.comments++;
-                  commentsRemaining--;
-
-                  // Process comments in batches
-                  if (batchComments.length >= 5) {
-                    if (handlers.onComments) {
-                      await handlers.onComments(batchComments, metadata);
-                    }
-                    batchComments = [];
-                  }
-
-                  if (commentsRemaining <= 0) break;
-                }
-              }
-
-              // Process any remaining comments in the batch
-              if (batchComments.length > 0 && handlers.onComments) {
-                await handlers.onComments(batchComments, metadata);
-              }
-
-            } catch (error) {
-              if (handlers.onError) {
-                await handlers.onError(error instanceof Error ? error : new Error(String(error)), `continuation for video ${metadata.id}`);
-              }
+            // If we run out of time and there are still comments to fetch,
+            // we'll use this continuation data in the next run
+            if (!timer.hasTimeLeft()) {
               break;
             }
+
+            // Otherwise, process one continuation now using our new efficient method
+            if (commentContinuationData) {
+              try {
+                const continuation = await fetchCommentsContinuation(innertube, commentContinuationData);
+                batchComments = [];
+
+                for (const { comment } of continuation.contents || []) {
+                  if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
+                    break;
+                  }
+
+                  const commentData = extractCommentData(comment, metadata);
+                  if (commentData) {
+                    videoComments.push(commentData);
+                    batchComments.push(commentData);
+                    allComments.push(commentData);
+                    counter.comments++;
+                    commentsRemaining--;
+
+                    // Process comments in batches
+                    if (batchComments.length >= 5) {
+                      if (handlers.onComments) {
+                        await handlers.onComments(batchComments, metadata);
+                      }
+                      batchComments = [];
+                    }
+
+                    if (commentsRemaining <= 0) break;
+                  }
+                }
+
+                // Process any remaining comments in the batch
+                if (batchComments.length > 0 && handlers.onComments) {
+                  await handlers.onComments(batchComments, metadata);
+                }
+
+                // Update continuation data for next time if needed
+                if (continuation.has_continuation && !timer.hasTimeLeft() && commentsRemaining > 0) {
+                  commentContinuationData = extractCommentContinuationData(continuation);
+                } else {
+                  commentContinuationData = null;
+                }
+
+              } catch (error) {
+                if (handlers.onError) {
+                  await handlers.onError(
+                    error instanceof Error ? error : new Error(String(error)),
+                    `comment continuation for video ${metadata.id}`
+                  );
+                }
+                commentContinuationData = null;
+              }
+            }
+          } else {
+            commentContinuationData = null;
           }
 
-          videosProcessed++;
+          // Only increment videos processed if we're done with this video or out of time
+          if (!commentContinuationData || !timer.hasTimeLeft()) {
+            videosProcessed++;
+          }
 
           if (handlers.onProgress) {
             await handlers.onProgress({
@@ -412,6 +550,8 @@ export async function scrapeYouTubeComments<T>(
               timeElapsed: timer.getElapsedTime() / 1000
             });
           }
+
+          if (!timer.hasTimeLeft()) break;
 
         } catch (error) {
           if (handlers.onError) {
@@ -437,8 +577,10 @@ export async function scrapeYouTubeComments<T>(
         totalComments: params.maxComments - commentsRemaining,
         timeElapsed: timer.getElapsedTime() / 1000,
         timedOut: !timer.hasTimeLeft(),
-        lastVideoIndex: videosProcessed, // Pass the last processed video index
-        continuationToken: search.has_continuation ? search.continuation : undefined // Pass the continuation token if available
+        lastVideoIndex: videosProcessed,
+        continuationToken: search?.has_continuation ? search.continuation : undefined,
+        commentContinuationData: commentContinuationData || undefined,
+        lastVideoId: currentVideoId || undefined
       });
     }
 
@@ -499,4 +641,93 @@ export function escapeCSV(value: string): string {
   value = value.replace(/"/g, '""'); // Escape quotes by doubling them
 
   return needsQuotes ? `"${value}"` : value;
+}
+
+/**
+ * Extract the continuation data from a comments response
+ */
+export function extractCommentContinuationData(comments: any): CommentContinuationData | null {
+  if (!comments || !comments.has_continuation) return null;
+
+  // First try to get the ContinuationItem directly
+  const continuationItem = comments.memo?.getType(YTNodes.ContinuationItem)?.at(0);
+  if (continuationItem) {
+    return {
+      endpoint: {
+        metadata: {
+          api_url: continuationItem.endpoint.metadata.api_url
+        },
+        payload: continuationItem.endpoint.payload
+      }
+    };
+  }
+
+  // If not found, try to get from on_response_received_endpoints
+  if (comments.page?.on_response_received_endpoints?.at(1)?.contents) {
+    const continuationItem = comments.page.on_response_received_endpoints
+      .at(1).contents.firstOfType(YTNodes.ContinuationItem);
+
+    if (continuationItem) {
+      return {
+        endpoint: {
+          metadata: {
+            api_url: continuationItem.endpoint.metadata.api_url
+          },
+          payload: continuationItem.endpoint.payload
+        }
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Fetch comments directly using continuation data instead of repeatedly calling getContinuation
+ */
+export async function fetchCommentsContinuation(
+  innertube: any,
+  continuationData: CommentContinuationData
+): Promise<any> {
+  if (!continuationData?.endpoint?.metadata?.api_url || !continuationData?.endpoint?.payload) {
+    throw new Error('Invalid continuation data');
+  }
+
+  try {
+    const response = await innertube.actions.execute(
+      continuationData.endpoint.metadata.api_url,
+      {
+        ...continuationData.endpoint.payload,
+        parse: true
+      }
+    );
+
+    // Extract the contents based on the response structure
+    let contents;
+    if (response.on_response_received_endpoints) {
+      contents = response.on_response_received_endpoints.first()?.contents;
+    } else if (response.on_response_received_actions_memo) {
+      const comments = response.on_response_received_actions_memo.getType(YTNodes.Comment);
+      if (comments && comments.length > 0) {
+        contents = { contents: comments.map(c => ({ comment: c })) };
+      }
+    }
+
+    // If we couldn't extract contents properly, try to make the result compatible with regular comments object
+    if (!contents) {
+      contents = { contents: [] };
+    }
+
+    // Add continuation properties to make it compatible with the regular comments object
+    contents.has_continuation = !!extractCommentContinuationData(response);
+    contents.getContinuation = async () => {
+      const nextContinuation = extractCommentContinuationData(response);
+      if (!nextContinuation) throw new Error('No continuation available');
+      return await fetchCommentsContinuation(innertube, nextContinuation);
+    };
+
+    return contents;
+  } catch (error) {
+    throw new Error(`Failed to fetch comments continuation: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }

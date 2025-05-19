@@ -25,6 +25,18 @@ export default async function handler(req: Request, context: Context) {
   // Get continuation parameters
   const startVideoIndex = parseInt(url.searchParams.get('startVideoIndex') || '0', 10);
   const continuationToken = url.searchParams.get('continuationToken') || undefined;
+  const lastVideoId = url.searchParams.get('lastVideoId') || undefined;
+
+  // Get comment continuation data if available
+  let commentContinuationData;
+  const commentContinuationStr = url.searchParams.get('commentContinuation');
+  if (commentContinuationStr) {
+    try {
+      commentContinuationData = JSON.parse(commentContinuationStr);
+    } catch (error) {
+      console.error('Failed to parse comment continuation data:', error);
+    }
+  }
 
   // Get metadata configuration
   const selectedFields = url.searchParams.get('selectedFields') ?
