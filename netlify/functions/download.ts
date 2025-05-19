@@ -25,7 +25,7 @@ export default async function handler(req: Request, context: Context) {
   // Get metadata configuration
   const selectedFields = url.searchParams.get('selectedFields') ?
     url.searchParams.get('selectedFields')!.split(',') as MetadataField[] :
-    ['label', 'author', 'comment', 'id', 'channel', 'title'];
+    ['author', 'comment', 'id', 'channel', 'title'] satisfies MetadataField[];
 
   const columnOrder = url.searchParams.get('columnOrder') ?
     url.searchParams.get('columnOrder')!.split(',') as MetadataField[] :

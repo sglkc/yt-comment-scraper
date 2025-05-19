@@ -13,12 +13,11 @@ const columnOrderContainer = document.getElementById('column-order-container');
 let scrapedData = [];
 
 // Store currently selected metadata fields and their order
-let selectedFields = ['label', 'author', 'comment', 'id', 'channel', 'title'];
+let selectedFields = ['author', 'comment', 'id', 'channel', 'title'];
 let columnOrder = [...selectedFields];
 
 // Field labels for display
 const fieldLabels = {
-    'label': 'Label',
     'author': 'Author',
     'comment': 'Comment',
     'id': 'Video ID',
@@ -162,7 +161,7 @@ function handleDragEnd() {
 function validateForm() {
     // Ensure at least one metadata field is selected
     if (selectedFields.length === 0) {
-        showError('Please select at least one metadata field to extract.');
+        showMessage('Please select at least one metadata field to extract.', true);
         return false;
     }
 
@@ -213,7 +212,7 @@ downloadCsvBtn.addEventListener('click', (e) => {
     } catch (error) {
         downloadCsvBtn.disabled = false;
         downloadCsvBtn.innerHTML = '<p>Download CSV Directly</p><small style="font-weight: normal;">For slower devices</small>';
-        showError(`Error: ${error.message || 'Something went wrong'}`);
+        showMessage(`Error: ${error.message || 'Something went wrong'}`, true);
     }
 });
 
@@ -245,14 +244,11 @@ streamCsvBtn.addEventListener('click', async (e) => {
     params.append('columnOrder', columnOrder.join(','));
 
     // Show loading state AND results container for real-time viewing
-    loadingIndicator.style.display = 'flex';
-    resultsContainer.style.display = 'block'; // Show results container immediately
+    loadingIndicator.style.display = 'grid';
+    resultsContainer.style.display = 'block';
 
     // Initialize the table header right away
     updateTableHeader();
-
-    const streamStatus = document.getElementById('stream-status');
-    streamStatus.textContent = 'Connecting...';
 
     // Display real-time stats container
     const realTimeStats = document.getElementById('real-time-stats');
@@ -281,6 +277,8 @@ streamCsvBtn.addEventListener('click', async (e) => {
         const eventSource = new EventSource(url);
         document.getElementById('result-query').textContent = formData.get('query');
 
+        showMessage('Connected - Waiting for data', false);
+
         // Handle incoming events
         eventSource.onmessage = (event) => {
             try {
@@ -292,7 +290,7 @@ streamCsvBtn.addEventListener('click', async (e) => {
                     case 'info':
                         // Display query info
                         document.getElementById('result-query').textContent = data.query;
-                        streamStatus.textContent = 'Connected - Received info';
+                        showMessage('Connected - Received info', false);
                         break;
 
                     case 'video':
@@ -300,17 +298,17 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         const videoTitle = data.video?.title || 'Unknown';
                         const videoChannel = data.video?.channel || 'Unknown';
                         document.getElementById('current-video').textContent = `${videoTitle} (${videoChannel})`;
-                        streamStatus.textContent = `Processing video ${data.videoNumber}: ${videoTitle}`;
+                        showMessage(`Processing video ${data.videoNumber}: ${videoTitle}`, false);
                         break;
 
                     case 'comments':
                         // Process received comments
                         if (data.data && Array.isArray(data.data)) {
-                            streamStatus.textContent = `Connected - Processing ${data.data.length} comments`;
+                            showMessage(`Processing ${data.data.length} new comments`, false);
                             processComments(data.data);
                         } else {
                             console.error('Invalid comments data structure:', data);
-                            streamStatus.textContent = 'Error - Invalid comments data';
+                            showMessage('Error - Invalid comments data', true);
                         }
                         break;
 
@@ -320,7 +318,7 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         document.getElementById('comments-found').textContent = data.commentsFound;
                         document.getElementById('result-videos').textContent = data.videosProcessed;
                         document.getElementById('result-comments').textContent = data.commentsFound;
-                        streamStatus.textContent = `Connected - ${data.videosProcessed} videos, ${data.commentsFound} comments`;
+                        showMessage(`Progress: ${data.videosProcessed} videos, ${data.commentsFound} comments`, false);
                         break;
 
                     case 'complete':
@@ -329,11 +327,10 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         streamCsvBtn.disabled = false;
                         downloadCsvBtn.disabled = false;
                         loadingIndicator.style.display = 'none';
-                        // Note: We don't need to set resultsContainer.style.display = 'block' here as it's already visible
                         document.getElementById('result-videos').textContent = data.videosScraped;
                         document.getElementById('result-comments').textContent = data.totalComments;
                         document.getElementById('time-elapsed').textContent = Math.round(data.timeElapsed) + 's';
-                        streamStatus.textContent = 'Complete';
+                        showMessage(`Scraping complete! Found ${data.totalComments} comments from ${data.videosScraped} videos.`, false);
 
                         // Close the event source
                         eventSource.close();
@@ -342,43 +339,38 @@ streamCsvBtn.addEventListener('click', async (e) => {
                     case 'error':
                         // Display error
                         clearInterval(elapsedTimeInterval);
-                        streamStatus.textContent = `Error: ${data.message}`;
-                        showError(data.message);
+                        showMessage(data.message, true);
                         eventSource.close();
                         break;
 
                     default:
                         console.log('Unknown event type:', data.type);
-                        streamStatus.textContent = `Received unknown event: ${data.type}`;
+                        showMessage(`Received unknown event: ${data.type}`, true);
                 }
             } catch (error) {
                 console.error('Error parsing event data:', error, event.data);
-                streamStatus.textContent = `Error parsing: ${error.message}`;
+                showMessage(`Error parsing data: ${error.message}`, true);
             }
         };
 
         // Handle connection open
         eventSource.onopen = () => {
             console.log('EventSource connection opened');
-            streamStatus.textContent = 'Connected - Waiting for data';
-            streamStatus.classList.add('connected');
+            showMessage('Connected - Waiting for data', false);
         };
 
         // Handle errors
         eventSource.onerror = (err) => {
             console.error('EventSource error:', err);
             clearInterval(elapsedTimeInterval);
-            streamStatus.textContent = 'Connection error - check console logs';
-            streamStatus.classList.add('error');
-            showError('Connection to server lost or timed out.');
+            showMessage('Connection to server lost or timed out.', true);
             eventSource.close();
         };
 
     } catch (error) {
         console.error('Error setting up EventSource:', error);
         clearInterval(elapsedTimeInterval);
-        streamStatus.textContent = `Setup error: ${error.message}`;
-        showError(`Error: ${error.message || 'Something went wrong'}`);
+        showMessage(`Error: ${error.message || 'Something went wrong'}`, true);
     }
 });
 
@@ -427,13 +419,26 @@ function updateTableHeader() {
     commentsTableHeader.appendChild(headerRow);
 }
 
-// Show error message
+// Show status/error message
+function showMessage(message, isError = false) {
+    const messageEl = document.getElementById('error-message');
+    messageEl.textContent = message;
+
+    // Set appropriate styling based on message type
+    messageEl.className = isError ? 'alert alert-danger' : 'alert alert-success';
+    messageEl.style.display = 'block';
+
+    // For errors, make sure the loading indicator is hidden
+    if (isError) {
+        loadingIndicator.style.display = 'none';
+        streamCsvBtn.disabled = false;
+        downloadCsvBtn.disabled = false;
+    }
+}
+
+// Legacy function for backwards compatibility
 function showError(message) {
-    errorMessage.textContent = message;
-    errorMessage.style.display = 'block';
-    loadingIndicator.style.display = 'none';
-    streamCsvBtn.disabled = false;
-    downloadCsvBtn.disabled = false;
+    showMessage(message, true);
 }
 
 // Export data to CSV
