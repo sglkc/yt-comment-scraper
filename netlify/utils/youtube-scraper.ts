@@ -535,7 +535,20 @@ export async function scrapeYouTubeComments<T>(
               }
             }
           } else {
+            // There are no more comments to fetch for this video
             commentContinuationData = null;
+
+            // Move to the next video if we still have time and haven't reached our comment limit
+            if (timer.hasTimeLeft() && commentsRemaining > 0) {
+              if (handlers.onProgress) {
+                await handlers.onProgress({
+                  videosProcessed,
+                  commentsFound: params.maxComments - commentsRemaining,
+                  timeElapsed: timer.getElapsedTime() / 1000
+                });
+              }
+              // Don't break here, allow the loop to continue to the next video
+            }
           }
 
           // Only increment videos processed if we're done with this video or out of time

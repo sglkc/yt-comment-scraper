@@ -12,6 +12,10 @@ const columnOrderContainer = document.getElementById('column-order-container');
 // Store the results for CSV export
 let scrapedData = [];
 
+// Track total counts for accumulation across scraping sessions
+let totalVideosScraped = 0;
+let totalCommentsFound = 0;
+
 // Store currently selected metadata fields and their order
 let selectedFields = ['author', 'comment', 'id', 'channel', 'title'];
 let columnOrder = [...selectedFields];
@@ -236,6 +240,10 @@ streamCsvBtn.addEventListener('click', async (e) => {
     errorMessage.style.display = 'none';
     errorMessage.textContent = '';
 
+    // Reset total counts for new search
+    totalVideosScraped = 0;
+    totalCommentsFound = 0;
+
     // Validate the form
     if (!validateForm()) {
         return;
@@ -323,11 +331,14 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         break;
 
                     case 'progress':
-                        // Update progress indicators
+                        // Update progress indicators for the current session
                         document.getElementById('videos-processed').textContent = data.videosProcessed;
                         document.getElementById('comments-found').textContent = data.commentsFound;
-                        document.getElementById('result-videos').textContent = data.videosProcessed;
-                        document.getElementById('result-comments').textContent = data.commentsFound;
+
+                        // Update total results adding to previous counts
+                        document.getElementById('result-videos').textContent = totalVideosScraped + data.videosProcessed;
+                        document.getElementById('result-comments').textContent = totalCommentsFound + data.commentsFound;
+
                         showMessage(`Progress: ${data.videosProcessed} videos, ${data.commentsFound} comments`, false);
                         break;
 
@@ -337,34 +348,34 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         streamCsvBtn.disabled = false;
                         downloadCsvBtn.disabled = false;
                         loadingIndicator.style.display = 'none';
-                        document.getElementById('result-videos').textContent = data.videosScraped;
-                        document.getElementById('result-comments').textContent = data.totalComments;
+
+                        // Update the final session results with correct accumulated counts
+                        const finalVideosCount = totalVideosScraped + data.videosScraped;
+                        const finalCommentsCount = totalCommentsFound + data.totalComments;
+
+                        document.getElementById('result-videos').textContent = finalVideosCount;
+                        document.getElementById('result-comments').textContent = finalCommentsCount;
                         document.getElementById('time-elapsed').textContent = Math.round(data.timeElapsed) + 's';
 
                         // Save state for continuation
                         scrapingState = {
-                            lastQuery: formData.get('query'),
+                            lastQuery: scrapingState.lastQuery, // Keep the same query
                             lastVideoIndex: data.lastVideoIndex || 0,
                             lastVideoId: data.lastVideoId,
                             commentContinuationData: data.commentContinuationData,
                             continuationToken: data.continuationToken,
                             continuationPossible: !!data.continuationPossible,
-                            searchParams: new URLSearchParams(params.toString())
+                            searchParams: params // Save the parameters for next continuation
                         };
 
                         // Show continue button if continuation is possible
                         const continueBtn = document.getElementById('continue-scraping');
                         if (data.continuationPossible) {
                             continueBtn.style.display = 'inline-block';
-
-                            const continueMessage = data.commentContinuationData
-                                ? `Scraping complete! Found ${data.totalComments} comments. You can continue scraping comments from the same video.`
-                                : `Scraping complete! Found ${data.totalComments} comments. You can continue with the next video.`;
-
-                            showMessage(continueMessage, false);
+                            showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. You can continue scraping to get more comments.`, false);
                         } else {
                             continueBtn.style.display = 'none';
-                            showMessage(`Scraping complete! Found ${data.totalComments} comments from ${data.videosScraped} videos.`, false);
+                            showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. No more comments to fetch.`, false);
                         }
 
                         // Close the event source
@@ -424,9 +435,11 @@ document.getElementById('continue-scraping').addEventListener('click', () => {
         return;
     }
 
-    // Reset table for the new comments
-    // Note: We don't reset scrapedData because we want to keep previous comments
-    commentsTable.innerHTML = '';
+    // Store current counts before continuing
+    totalVideosScraped = parseInt(document.getElementById('result-videos').textContent || '0');
+    totalCommentsFound = parseInt(document.getElementById('result-comments').textContent || '0');
+
+    // Preserve current results
     errorMessage.style.display = 'none';
     errorMessage.textContent = '';
 
@@ -524,13 +537,14 @@ document.getElementById('continue-scraping').addEventListener('click', () => {
                         break;
 
                     case 'progress':
-                        // Update progress indicators
+                        // Update progress indicators for the current session
                         document.getElementById('videos-processed').textContent = data.videosProcessed;
                         document.getElementById('comments-found').textContent = data.commentsFound;
-                        document.getElementById('result-videos').textContent =
-                            (parseInt(document.getElementById('result-videos').textContent || '0') + data.videosProcessed);
-                        document.getElementById('result-comments').textContent =
-                            (parseInt(document.getElementById('result-comments').textContent || '0') + data.commentsFound);
+
+                        // Update total results adding to previous counts
+                        document.getElementById('result-videos').textContent = totalVideosScraped + data.videosProcessed;
+                        document.getElementById('result-comments').textContent = totalCommentsFound + data.commentsFound;
+
                         showMessage(`Progress: ${data.videosProcessed} videos, ${data.commentsFound} comments`, false);
                         break;
 
@@ -541,11 +555,12 @@ document.getElementById('continue-scraping').addEventListener('click', () => {
                         downloadCsvBtn.disabled = false;
                         loadingIndicator.style.display = 'none';
 
-                        // Update stats with cumulative values
-                        document.getElementById('result-videos').textContent =
-                            (parseInt(document.getElementById('result-videos').textContent || '0'));
-                        document.getElementById('result-comments').textContent =
-                            (parseInt(document.getElementById('result-comments').textContent || '0'));
+                        // Update the final session results with correct accumulated counts
+                        const finalVideosCount = totalVideosScraped + data.videosScraped;
+                        const finalCommentsCount = totalCommentsFound + data.totalComments;
+
+                        document.getElementById('result-videos').textContent = finalVideosCount;
+                        document.getElementById('result-comments').textContent = finalCommentsCount;
                         document.getElementById('time-elapsed').textContent = Math.round(data.timeElapsed) + 's';
 
                         // Save state for continuation
@@ -561,10 +576,10 @@ document.getElementById('continue-scraping').addEventListener('click', () => {
                         const continueBtn = document.getElementById('continue-scraping');
                         if (data.continuationPossible) {
                             continueBtn.style.display = 'inline-block';
-                            showMessage(`Scraping complete! You can continue scraping to get more comments.`, false);
+                            showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. You can continue scraping to get more comments.`, false);
                         } else {
                             continueBtn.style.display = 'none';
-                            showMessage(`Scraping complete! No more comments to fetch.`, false);
+                            showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. No more comments to fetch.`, false);
                         }
 
                         // Close the event source
