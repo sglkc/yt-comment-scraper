@@ -251,6 +251,8 @@ export async function scrapeYouTubeComments<T>(
     uploadDate: UploadDate;
     sortBy: SortBy;
     timer?: number;
+    startVideoIndex?: number; // The video index to start from for continuation
+    continuationToken?: string; // Optional token to continue from a specific search page
   },
   handlers: {
     onStart?: () => Promise<void>;
@@ -259,7 +261,14 @@ export async function scrapeYouTubeComments<T>(
     onComments?: (comments: CommentData[], metadata: VideoMetadata) => Promise<void>;
     onProgress?: (stats: { videosProcessed: number, commentsFound: number, timeElapsed: number }) => Promise<void>;
     onError?: (error: Error, context?: string) => Promise<void>;
-    onComplete?: (stats: { videosScraped: number, totalComments: number, timeElapsed: number, timedOut: boolean }) => Promise<void>;
+    onComplete?: (stats: {
+      videosScraped: number,
+      totalComments: number,
+      timeElapsed: number,
+      timedOut: boolean,
+      lastVideoIndex: number,
+      continuationToken?: string
+    }) => Promise<void>;
   }
 ): Promise<{ comments: CommentData[], videosScraped: number }> {
   const timer = createTimer(params.timer);
@@ -280,6 +289,11 @@ export async function scrapeYouTubeComments<T>(
       uploadDate: params.uploadDate,
       sortBy: params.sortBy
     });
+
+    if (params.continuationToken) {
+      // If continuation token is provided, use it to fetch the next page of results
+      search = await search.getContinuation(params.continuationToken);
+    }
 
     if (handlers.onSearch) {
       await handlers.onSearch(search);
@@ -422,7 +436,9 @@ export async function scrapeYouTubeComments<T>(
         videosScraped: videosProcessed,
         totalComments: params.maxComments - commentsRemaining,
         timeElapsed: timer.getElapsedTime() / 1000,
-        timedOut: !timer.hasTimeLeft()
+        timedOut: !timer.hasTimeLeft(),
+        lastVideoIndex: videosProcessed, // Pass the last processed video index
+        continuationToken: search.has_continuation ? search.continuation : undefined // Pass the continuation token if available
       });
     }
 

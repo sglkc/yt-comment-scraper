@@ -22,6 +22,10 @@ export default async function handler(req: Request, context: Context) {
   const uploadDate = url.searchParams.get('uploadDate') as UploadDate || 'week';
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
 
+  // Get continuation parameters
+  const startVideoIndex = parseInt(url.searchParams.get('startVideoIndex') || '0', 10);
+  const continuationToken = url.searchParams.get('continuationToken') || undefined;
+
   // Get metadata configuration
   const selectedFields = url.searchParams.get('selectedFields') ?
     url.searchParams.get('selectedFields')!.split(',') as MetadataField[] :
@@ -50,7 +54,9 @@ export default async function handler(req: Request, context: Context) {
             maxVidComments,
             maxComments,
             uploadDate,
-            sortBy
+            sortBy,
+            startVideoIndex,
+            continuationToken
           },
           {
             onStart: async () => {
@@ -126,7 +132,10 @@ export default async function handler(req: Request, context: Context) {
                 videosScraped: stats.videosScraped,
                 totalComments: stats.totalComments,
                 timeElapsed: stats.timeElapsed,
-                timedOut: stats.timedOut
+                timedOut: stats.timedOut,
+                lastVideoIndex: stats.lastVideoIndex,
+                continuationToken: stats.continuationToken,
+                continuationPossible: stats.timedOut && (stats.lastVideoIndex > 0 || stats.continuationToken)
               })}\n\n`));
             }
           }
