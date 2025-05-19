@@ -5,13 +5,13 @@ export type UploadDate = 'hour' | 'today' | 'week' | 'month' | 'year' | 'all';
 export type SortBy = 'relevance' | 'rating' | 'upload_date' | 'view_count';
 
 // Available metadata fields for videos
-export type VideoField = 
-  'id' | 'title' | 'channel' | 'channel_id' | 'description' | 'view_count' | 
+export type VideoField =
+  'id' | 'title' | 'channel' | 'channel_id' | 'description' | 'view_count' |
   'duration' | 'upload_date' | 'is_live' | 'is_upcoming' | 'keywords';
 
 // Available metadata fields for comments
-export type CommentField = 
-  'id' | 'author' | 'comment' | 'published_time' | 'like_count' | 
+export type CommentField =
+  'id' | 'author' | 'comment' | 'published_time' | 'like_count' |
   'is_liked' | 'is_hearted' | 'reply_count' | 'comment_id';
 
 // All available metadata fields
@@ -67,7 +67,7 @@ export interface MetadataConfig {
 // Track execution time to respect the time limits
 export const createTimer = (maxExecutionTime: number = 9000) => {
   const start = Date.now();
-  
+
   return {
     hasTimeLeft: () => {
       return (Date.now() - start) < maxExecutionTime;
@@ -142,37 +142,37 @@ export function extractVideoMetadata(video: any): VideoMetadata {
   if (video.author?.id) {
     metadata.channel_id = video.author.id;
   }
-  
+
   if (video.description_snippet) {
     metadata.description = video.description_snippet.toString();
   } else if (video.description) {
     metadata.description = video.description.toString();
   }
-  
+
   if (video.view_count !== undefined) {
-    metadata.view_count = typeof video.view_count === 'number' ? 
-      video.view_count : 
+    metadata.view_count = typeof video.view_count === 'number' ?
+      video.view_count :
       parseInt(video.view_count?.toString().replace(/[^0-9]/g, '') || '0');
   }
-  
+
   if (video.duration !== undefined) {
-    metadata.duration = typeof video.duration === 'number' ? 
-      video.duration : 
+    metadata.duration = typeof video.duration === 'number' ?
+      video.duration :
       parseInt(video.duration?.toString() || '0');
   }
-  
+
   if (video.published) {
     metadata.upload_date = video.published.toString();
   }
-  
+
   if (video.is_live !== undefined) {
     metadata.is_live = !!video.is_live;
   }
-  
+
   if (video.is_upcoming !== undefined) {
     metadata.is_upcoming = !!video.is_upcoming;
   }
-  
+
   if (video.keywords) {
     if (Array.isArray(video.keywords)) {
       metadata.keywords = video.keywords.join(', ');
@@ -250,6 +250,7 @@ export async function scrapeYouTubeComments<T>(
     maxComments: number;
     uploadDate: UploadDate;
     sortBy: SortBy;
+    timer?: number;
   },
   handlers: {
     onStart?: () => Promise<void>;
@@ -261,7 +262,7 @@ export async function scrapeYouTubeComments<T>(
     onComplete?: (stats: { videosScraped: number, totalComments: number, timeElapsed: number, timedOut: boolean }) => Promise<void>;
   }
 ): Promise<{ comments: CommentData[], videosScraped: number }> {
-  const timer = createTimer();
+  const timer = createTimer(params.timer);
   const allComments: CommentData[] = [];
   let videosProcessed = 0;
   let commentsRemaining = params.maxComments;
@@ -305,7 +306,7 @@ export async function scrapeYouTubeComments<T>(
 
           // Process comments
           let batchComments: CommentData[] = [];
-          
+
           for (const { comment } of comments.contents) {
             if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
               break;
@@ -318,7 +319,7 @@ export async function scrapeYouTubeComments<T>(
               allComments.push(commentData);
               counter.comments++;
               commentsRemaining--;
-              
+
               // Process comments in batches
               if (batchComments.length >= 5) {
                 if (handlers.onComments) {
@@ -330,7 +331,7 @@ export async function scrapeYouTubeComments<T>(
               if (commentsRemaining <= 0) break;
             }
           }
-          
+
           // Process any remaining comments in the batch
           if (batchComments.length > 0 && handlers.onComments) {
             await handlers.onComments(batchComments, metadata);
@@ -339,17 +340,17 @@ export async function scrapeYouTubeComments<T>(
           // Get continuations if needed and time permits
           let currentComments = comments;
           while (
-            counter.comments < params.maxVidComments && 
-            commentsRemaining > 0 && 
-            timer.hasTimeLeft() && 
+            counter.comments < params.maxVidComments &&
+            commentsRemaining > 0 &&
+            timer.hasTimeLeft() &&
             currentComments.has_continuation
           ) {
             try {
               const continuation = await currentComments.getContinuation();
               currentComments = continuation;
-              
+
               batchComments = [];
-              
+
               for (const { comment } of continuation.contents) {
                 if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
                   break;
@@ -362,7 +363,7 @@ export async function scrapeYouTubeComments<T>(
                   allComments.push(commentData);
                   counter.comments++;
                   commentsRemaining--;
-                  
+
                   // Process comments in batches
                   if (batchComments.length >= 5) {
                     if (handlers.onComments) {
@@ -374,12 +375,12 @@ export async function scrapeYouTubeComments<T>(
                   if (commentsRemaining <= 0) break;
                 }
               }
-              
+
               // Process any remaining comments in the batch
               if (batchComments.length > 0 && handlers.onComments) {
                 await handlers.onComments(batchComments, metadata);
               }
-              
+
             } catch (error) {
               if (handlers.onError) {
                 await handlers.onError(error instanceof Error ? error : new Error(String(error)), `continuation for video ${metadata.id}`);
@@ -401,7 +402,7 @@ export async function scrapeYouTubeComments<T>(
         } catch (error) {
           if (handlers.onError) {
             await handlers.onError(
-              error instanceof Error ? error : new Error(String(error)), 
+              error instanceof Error ? error : new Error(String(error)),
               `processing video ${metadata.id}`
             );
           }
@@ -433,7 +434,7 @@ export async function scrapeYouTubeComments<T>(
     if (handlers.onError) {
       await handlers.onError(error instanceof Error ? error : new Error(String(error)));
     }
-    
+
     return {
       comments: allComments,
       videosScraped: videosProcessed
@@ -455,14 +456,14 @@ export function convertToCSV(data: CommentData[], metadataConfig?: MetadataConfi
   data.forEach(item => {
     const row = headers.map(field => {
       let value = item[field as keyof CommentData];
-      
+
       // Handle undefined or non-string values
       if (value === undefined || value === null) {
         return '';
       } else if (typeof value !== 'string') {
         value = String(value);
       }
-      
+
       return escapeCSV(value);
     });
 

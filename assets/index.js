@@ -361,9 +361,16 @@ streamCsvBtn.addEventListener('click', async (e) => {
 
         // Handle errors
         eventSource.onerror = (err) => {
+            const seconds = Number(document.getElementById('time-elapsed').textContent.match(/\d+/)?.[0] || '0')
+
+            if (seconds >= 10) {
+              showMessage('Time limit has been reached.', true);
+            } else {
+              showMessage('Connection to server lost or timed out.', true);
+            }
+
             console.error('EventSource error:', err);
             clearInterval(elapsedTimeInterval);
-            showMessage('Connection to server lost or timed out.', true);
             eventSource.close();
         };
 
@@ -478,6 +485,7 @@ exportButton.addEventListener('click', () => {
 
 // Helper function to escape HTML to prevent XSS
 function escapeHtml(unsafe) {
+    if (typeof unsafe !== 'string') unsafe = String(unsafe)
     if (!unsafe) return '';
     return unsafe
         .replace(/&/g, '&amp;')

@@ -49,7 +49,8 @@ export default async function handler(req: Request, context: Context) {
         maxVidComments,
         maxComments,
         uploadDate,
-        sortBy
+        sortBy,
+        timer: 8000,
       },
       {
         onComments: async (comments) => {
