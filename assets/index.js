@@ -3,56 +3,170 @@ const loadingIndicator = document.getElementById('loading-indicator');
 const resultsContainer = document.getElementById('results-container');
 const errorMessage = document.getElementById('error-message');
 const commentsTable = document.getElementById('comments-table');
+const commentsTableHeader = document.getElementById('comments-table-header');
 const exportButton = document.getElementById('export-csv');
 const streamCsvBtn = document.getElementById('stream-csv');
 const downloadCsvBtn = document.getElementById('download-csv');
+const columnOrderContainer = document.getElementById('column-order-container');
 
 // Store the results for CSV export
 let scrapedData = [];
 
+// Store currently selected metadata fields and their order
+let selectedFields = ['label', 'author', 'comment', 'id', 'channel', 'title'];
+let columnOrder = [...selectedFields];
+
+// Field labels for display
+const fieldLabels = {
+    'label': 'Label',
+    'author': 'Author',
+    'comment': 'Comment',
+    'id': 'Video ID',
+    'title': 'Video Title',
+    'channel': 'Channel',
+    'channel_id': 'Channel ID',
+    'description': 'Description',
+    'view_count': 'View Count',
+    'duration': 'Duration',
+    'upload_date': 'Upload Date',
+    'is_live': 'Is Live',
+    'is_upcoming': 'Is Upcoming',
+    'keywords': 'Keywords',
+    'published_time': 'Published Time',
+    'like_count': 'Likes',
+    'reply_count': 'Replies',
+    'comment_id': 'Comment ID',
+    'is_liked': 'Is Liked',
+    'is_hearted': 'Is Hearted'
+};
+
+// Initialize the metadata fields and column order UI
+function initMetadataUI() {
+    // Set up metadata field checkboxes event listeners
+    const checkboxes = document.querySelectorAll('input[name="metadata-field"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedFields);
+    });
+
+    // Initial population of the column order container
+    updateSelectedFields();
+
+    // Set up drag and drop for column ordering
+    setupDragAndDrop();
+}
+
+// Update the selected fields based on checkbox state
+function updateSelectedFields() {
+    const checkboxes = document.querySelectorAll('input[name="metadata-field"]:checked');
+    selectedFields = Array.from(checkboxes).map(cb => cb.value);
+    
+    // Make sure we have at least one field selected
+    if (selectedFields.length === 0) {
+        selectedFields = ['author', 'comment'];
+        checkboxes.forEach(cb => {
+            if (selectedFields.includes(cb.value)) {
+                cb.checked = true;
+            }
+        });
+    }
+    
+    // Update column order to include only selected fields
+    columnOrder = columnOrder.filter(field => selectedFields.includes(field));
+    
+    // Add any newly selected fields that aren't in the column order
+    selectedFields.forEach(field => {
+        if (!columnOrder.includes(field)) {
+            columnOrder.push(field);
+        }
+    });
+    
+    // Update the column order UI
+    updateColumnOrderUI();
+}
+
+// Update the column order UI
+function updateColumnOrderUI() {
+    // Clear the container
+    columnOrderContainer.innerHTML = '';
+    
+    // Add column items
+    columnOrder.forEach(field => {
+        const item = document.createElement('div');
+        item.className = 'column-item';
+        item.draggable = true;
+        item.dataset.field = field;
+        item.textContent = fieldLabels[field] || field;
+        
+        // Add drag event listeners
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('drop', handleDrop);
+        item.addEventListener('dragend', handleDragEnd);
+        
+        columnOrderContainer.appendChild(item);
+    });
+}
+
+// Setup drag and drop functionality
+function setupDragAndDrop() {
+    columnOrderContainer.addEventListener('dragover', e => {
+        e.preventDefault();
+    });
+}
+
+// Variables to store drag state
+let draggedItem = null;
+
+// Drag and drop event handlers
+function handleDragStart(e) {
+    draggedItem = e.target;
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', e.target.dataset.field);
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    
+    if (draggedItem === e.target) return;
+    
+    // Get the source and target fields
+    const sourceField = draggedItem.dataset.field;
+    const targetField = e.target.dataset.field;
+    
+    // Find their positions in the order array
+    const sourceIndex = columnOrder.indexOf(sourceField);
+    const targetIndex = columnOrder.indexOf(targetField);
+    
+    // Remove the source field from its position
+    columnOrder.splice(sourceIndex, 1);
+    
+    // Insert it at the target position
+    columnOrder.splice(targetIndex, 0, sourceField);
+    
+    // Update the UI
+    updateColumnOrderUI();
+}
+
+function handleDragEnd() {
+    draggedItem.classList.remove('dragging');
+    draggedItem = null;
+}
+
 // Form validation function
 function validateForm() {
-    const formData = new FormData(form);
-    let isValid = true;
-    let errorText = '';
-
-    // Check if query is provided
-    const query = formData.get('query');
-    if (!query || query.trim() === '') {
-        errorText = 'Please enter a search query';
-        isValid = false;
+    // Ensure at least one metadata field is selected
+    if (selectedFields.length === 0) {
+        showError('Please select at least one metadata field to extract.');
+        return false;
     }
 
-    // Validate numeric parameters
-    const maxVideos = parseInt(formData.get('maxVideos') || '20', 10);
-    const maxVidComments = parseInt(formData.get('maxVidComments') || '100', 10);
-    const maxComments = parseInt(formData.get('maxComments') || '500', 10);
-
-    // Check limits
-    if (maxVideos > 50) {
-        errorText = 'Maximum videos should be 50 or less';
-        isValid = false;
-    }
-
-    if (maxVidComments > 1000) {
-        errorText = 'Maximum comments per video should be 1000 or less';
-        isValid = false;
-    }
-
-    if (maxComments > 5000) {
-        errorText = 'Maximum total comments should be 5000 or less';
-        isValid = false;
-    }
-
-    // Show error if validation fails
-    if (!isValid) {
-        errorMessage.textContent = errorText;
-        errorMessage.style.display = 'block';
-    } else {
-        errorMessage.style.display = 'none';
-    }
-
-    return isValid;
+    return true;
 }
 
 // Handle direct CSV download
@@ -71,6 +185,10 @@ downloadCsvBtn.addEventListener('click', (e) => {
     for (const [key, value] of formData.entries()) {
         params.append(key, value);
     }
+    
+    // Add metadata fields and column order parameters
+    params.append('selectedFields', selectedFields.join(','));
+    params.append('columnOrder', columnOrder.join(','));
 
     // Show loading state
     downloadCsvBtn.disabled = true;
@@ -78,81 +196,28 @@ downloadCsvBtn.addEventListener('click', (e) => {
     errorMessage.style.display = 'none';
 
     try {
-        // Redirect to download endpoint
-        window.location.href = `/.netlify/functions/download?${params.toString()}`;
-
-        // Reset button after a delay
+        // Create download iframe
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        
+        // Set iframe src to download endpoint with params
+        iframe.src = `/api/download?${params.toString()}`;
+        
+        // Reset button state after a delay
         setTimeout(() => {
             downloadCsvBtn.disabled = false;
-            downloadCsvBtn.textContent = 'Download CSV Directly';
-        }, 10_000);
-
+            downloadCsvBtn.innerHTML = '<p>Download CSV Directly</p><small style="font-weight: normal;">For slower devices</small>';
+            document.body.removeChild(iframe);
+        }, 3000);
     } catch (error) {
-        console.error('Error:', error);
-        errorMessage.textContent = `Error: ${error.message || 'Something went wrong'}`;
-        errorMessage.style.display = 'block';
         downloadCsvBtn.disabled = false;
-        downloadCsvBtn.textContent = 'Download CSV Directly';
+        downloadCsvBtn.innerHTML = '<p>Download CSV Directly</p><small style="font-weight: normal;">For slower devices</small>';
+        showError(`Error: ${error.message || 'Something went wrong'}`);
     }
 });
 
-// Create elements for real-time statistics
-const createRealTimeStats = () => {
-    const statsContainer = document.createElement('div');
-    statsContainer.className = 'real-time-stats';
-    statsContainer.innerHTML = `
-            <div class="stat-item">
-                <strong>STATUS</strong>
-                <span id="stream-status">Connecting...</span>
-            </div>
-            <div class="stat-item">
-                <strong>ELAPSED TIME</strong>
-                <span id="elapsed-time">0s</span>
-            </div>
-            <div class="stat-item">
-                <strong>VIDEOS PROCESSED</strong>
-                <span id="videos-processed">0</span>
-            </div>
-            <div class="stat-item">
-                <strong>COMMENTS FOUND</strong>
-                <span id="comments-found">0</span>
-            </div>
-            <div class="stat-item">
-                <strong>CURRENT VIDEO</strong>
-                <span id="current-video">-</span>
-            </div>
-        `;
-
-    // Insert before loading indicator
-    loadingIndicator.parentNode.insertBefore(statsContainer, loadingIndicator);
-    return statsContainer;
-};
-
-// Handle updates to real-time stats
-const updateRealTimeStats = (data) => {
-    const statusEl = document.getElementById('stream-status');
-    const timeEl = document.getElementById('elapsed-time');
-    const videosEl = document.getElementById('videos-processed');
-    const commentsEl = document.getElementById('comments-found');
-    const videoEl = document.getElementById('current-video');
-
-    if (data.type === 'progress') {
-        statusEl.textContent = 'Scraping...';
-        timeEl.textContent = `${data.timeElapsed.toFixed(1)}s`;
-        videosEl.textContent = data.videosProcessed;
-        commentsEl.textContent = data.commentsFound;
-    } else if (data.type === 'video') {
-        videoEl.textContent = data.video?.title || '-';
-    } else if (data.type === 'complete') {
-        statusEl.textContent = data.timedOut ? 'Timed Out' : 'Complete!';
-        timeEl.textContent = `${data.timeElapsed.toFixed(1)}s`;
-        videosEl.textContent = data.videosScraped;
-        commentsEl.textContent = data.totalComments;
-    } else if (data.type === 'error') {
-        statusEl.textContent = 'Error';
-    }
-};
-
+// Handle streaming CSV
 streamCsvBtn.addEventListener('click', async (e) => {
     e.preventDefault();
 
@@ -174,41 +239,53 @@ streamCsvBtn.addEventListener('click', async (e) => {
     for (const [key, value] of formData.entries()) {
         params.append(key, value);
     }
+    
+    // Add metadata fields and column order parameters
+    params.append('selectedFields', selectedFields.join(','));
+    params.append('columnOrder', columnOrder.join(','));
 
-    // Create and show real-time stats container
-    const statsContainer = createRealTimeStats();
-    statsContainer.style.display = 'flex';
-    loadingIndicator.style.display = 'block';
-    resultsContainer.style.display = 'block';
+    // Show loading state
+    loadingIndicator.style.display = 'flex';
+    streamCsvBtn.disabled = true;
+    downloadCsvBtn.disabled = true;
+    resultsContainer.style.display = 'none';
 
     try {
-        // Create URL for Netlify function
-        const functionUrl = `/.netlify/functions/scraper?${params.toString()}`;
+        // Set up SSE connection
+        const url = `/api/scraper?${params.toString()}`;
+        const eventSource = new EventSource(url);
+        document.getElementById('result-query').textContent = formData.get('query');
 
-        // Create EventSource for server-sent events
-        const eventSource = new EventSource(functionUrl);
-
-        // Handle different event types
+        // Handle incoming events
         eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
 
-                // Update stats based on event type
-                updateRealTimeStats(data);
-
-                // Handle different message types
                 switch (data.type) {
+                    case 'info':
+                        // Display query info
+                        document.getElementById('result-query').textContent = data.query;
+                        break;
+
                     case 'comments':
-                        // Add comments to data store and table
+                        // Process received comments
                         processComments(data.data);
                         break;
 
+                    case 'progress':
+                        // Update progress indicators
+                        document.getElementById('result-videos').textContent = data.videosProcessed;
+                        document.getElementById('result-comments').textContent = data.commentsFound;
+                        break;
+
                     case 'complete':
-                        // Handle completion
-                        document.getElementById('result-query').textContent = params.get('query');
+                        // Show results and enable buttons
+                        streamCsvBtn.disabled = false;
+                        downloadCsvBtn.disabled = false;
+                        loadingIndicator.style.display = 'none';
+                        resultsContainer.style.display = 'block';
                         document.getElementById('result-videos').textContent = data.videosScraped;
                         document.getElementById('result-comments').textContent = data.totalComments;
-                        loadingIndicator.style.display = 'none';
 
                         // Close the event source
                         eventSource.close();
@@ -248,20 +325,42 @@ function processComments(comments) {
     // Add to data store for CSV export
     scrapedData = [...scrapedData, ...comments];
 
+    // Initialize the table header if not already done
+    if (commentsTableHeader.innerHTML === '') {
+        updateTableHeader();
+    }
+
     // Add rows to table
     comments.forEach(item => {
         const row = document.createElement('tr');
         row.className = 'comment-row';
 
-        row.innerHTML = `
-                <td>${escapeHtml(item.author)}</td>
-                <td>${escapeHtml(item.comment)}</td>
-                <td>${escapeHtml(item.title)}</td>
-                <td>${escapeHtml(item.channel)}</td>
-            `;
+        let cellsHtml = '';
+        columnOrder.forEach(field => {
+            if (selectedFields.includes(field)) {
+                cellsHtml += `<td>${escapeHtml(item[field] !== undefined ? item[field] : '')}</td>`;
+            }
+        });
 
+        row.innerHTML = cellsHtml;
         commentsTable.appendChild(row);
     });
+}
+
+// Update table header based on selected columns
+function updateTableHeader() {
+    const headerRow = document.createElement('tr');
+    
+    columnOrder.forEach(field => {
+        if (selectedFields.includes(field)) {
+            const th = document.createElement('th');
+            th.textContent = fieldLabels[field] || field;
+            headerRow.appendChild(th);
+        }
+    });
+    
+    commentsTableHeader.innerHTML = '';
+    commentsTableHeader.appendChild(headerRow);
 }
 
 // Show error message
@@ -269,6 +368,8 @@ function showError(message) {
     errorMessage.textContent = message;
     errorMessage.style.display = 'block';
     loadingIndicator.style.display = 'none';
+    streamCsvBtn.disabled = false;
+    downloadCsvBtn.disabled = false;
 }
 
 // Export data to CSV
@@ -279,18 +380,15 @@ exportButton.addEventListener('click', () => {
     }
 
     // Create CSV content
-    const headers = ['label', 'author', 'comment', 'id', 'channel', 'title'];
-    let csvContent = headers.join(',') + '\n';
+    let csvContent = columnOrder.filter(field => selectedFields.includes(field)).join(',') + '\n';
 
     scrapedData.forEach(item => {
-        const row = [
-            item.label || '0',
-            escapeCSV(item.author || ''),
-            escapeCSV(item.comment || ''),
-            item.id || '',
-            escapeCSV(item.channel || ''),
-            escapeCSV(item.title || ''),
-        ];
+        const row = columnOrder
+            .filter(field => selectedFields.includes(field))
+            .map(field => {
+                const value = item[field];
+                return escapeCSV(value !== undefined ? String(value) : '');
+            });
 
         csvContent += row.join(',') + '\n';
     });
@@ -329,3 +427,6 @@ function escapeCSV(value) {
     }
     return value;
 }
+
+// Initialize the UI when the page loads
+document.addEventListener('DOMContentLoaded', initMetadataUI);

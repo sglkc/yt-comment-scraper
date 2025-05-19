@@ -2,13 +2,15 @@ import { Context } from "@netlify/functions";
 import {
   scrapeYouTubeComments,
   convertToCSV,
-  CommentData,
-  SortBy,
-  UploadDate
-} from "../utils/youtube-scraper.js";
+  SortBy, 
+  UploadDate,
+  MetadataField,
+  MetadataConfig
+} from '../utils/youtube-scraper';
 
 /**
- * Download function handler that provides CSV download with buffered response
+ * API Download function handler that returns a complete CSV file
+ * using Netlify Functions 2.0
  */
 export default async function handler(req: Request, context: Context) {
   // Get URL parameters
@@ -20,69 +22,83 @@ export default async function handler(req: Request, context: Context) {
   const uploadDate = url.searchParams.get('uploadDate') as UploadDate || 'week';
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
 
-  try {
-    // Initialize dataset for collecting all comments
-    const dataset: CommentData[] = [];
+  // Get metadata configuration
+  const selectedFields = url.searchParams.get('selectedFields') ? 
+    url.searchParams.get('selectedFields')!.split(',') as MetadataField[] : 
+    ['label', 'author', 'comment', 'id', 'channel', 'title'];
+  
+  const columnOrder = url.searchParams.get('columnOrder') ? 
+    url.searchParams.get('columnOrder')!.split(',') as MetadataField[] : 
+    selectedFields;
+    
+  const metadataConfig: MetadataConfig = {
+    selectedFields,
+    columnOrder
+  };
 
-    // Use the shared scraper utility with specific handlers for download case
+  try {
+    // Set a 30-second timeout for this function (3x longer than the streaming endpoint)
+    context.waitUntil(new Promise(resolve => setTimeout(resolve, 30000)));
+
+    // Use the same scraper utility but buffer all results
+    const allComments: any[] = [];
     const result = await scrapeYouTubeComments(
       {
         query,
         maxVideos,
-        maxVidComments,
+        maxVidComments, 
         maxComments,
         uploadDate,
         sortBy
       },
       {
-        // We don't need any streaming handlers for download
-        // Just collect all comments in memory
-        onError: async (error, context) => {
-          console.error(`Error ${context ? 'in ' + context : ''}:`, error.message);
+        onComments: async (comments) => {
+          // Filter comments to only include selected fields
+          if (metadataConfig.selectedFields.length < Object.keys(comments[0] || {}).length) {
+            comments = comments.map(comment => {
+              const filteredComment: any = {};
+              metadataConfig.selectedFields.forEach(field => {
+                if (field in comment) {
+                  filteredComment[field] = comment[field as keyof typeof comment];
+                }
+              });
+              return filteredComment;
+            });
+          }
+          
+          allComments.push(...comments);
+        },
+        onError: async (error) => {
+          console.error('Error during scraping:', error);
         }
       }
     );
 
-    // No comments found
-    if (result.comments.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error: 'No data found',
-          message: 'No comments could be found for the given search parameters.'
-        }),
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Convert dataset to CSV
-    const csvContent = convertToCSV(result.comments);
-
-    // Create a clean filename from the query
-    const sanitizedQuery = query.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `youtube-comments-${sanitizedQuery}-${timestamp}.csv`;
-
-    // Return the CSV as a downloadable file
-    return new Response(csvContent, {
+    // Generate CSV from all collected comments
+    const csv = convertToCSV(allComments, metadataConfig);
+    
+    // Sanitize filename - replace spaces and special characters
+    const sanitizedQuery = query.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    
+    // Return the CSV file
+    return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `attachment; filename="youtube-comments-${sanitizedQuery}-${Date.now()}.csv"`,
         'Cache-Control': 'no-cache'
       }
     });
+    
   } catch (error) {
-    return new Response(
-      JSON.stringify({
-        error: 'An error occurred while scraping',
-        message: error instanceof Error ? error.message : String(error)
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
+    // Handle errors
+    return new Response(JSON.stringify({ 
+      error: error instanceof Error ? error.message : String(error) 
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
       }
-    );
+    });
   }
 }

@@ -4,6 +4,19 @@ import { Innertube, YTNodes } from 'youtubei.js';
 export type UploadDate = 'hour' | 'today' | 'week' | 'month' | 'year' | 'all';
 export type SortBy = 'relevance' | 'rating' | 'upload_date' | 'view_count';
 
+// Available metadata fields for videos
+export type VideoField = 
+  'id' | 'title' | 'channel' | 'channel_id' | 'description' | 'view_count' | 
+  'duration' | 'upload_date' | 'is_live' | 'is_upcoming' | 'keywords';
+
+// Available metadata fields for comments
+export type CommentField = 
+  'id' | 'author' | 'comment' | 'published_time' | 'like_count' | 
+  'is_liked' | 'is_hearted' | 'reply_count' | 'comment_id';
+
+// All available metadata fields
+export type MetadataField = VideoField | CommentField | 'label';
+
 // Comment data interface
 export interface CommentData {
   id: string;
@@ -12,6 +25,21 @@ export interface CommentData {
   author: string;
   comment: string;
   label: number;
+  // Optional fields from API
+  channel_id?: string;
+  description?: string;
+  view_count?: number;
+  duration?: number;
+  upload_date?: string;
+  is_live?: boolean;
+  is_upcoming?: boolean;
+  keywords?: string;
+  published_time?: string;
+  like_count?: string;
+  is_liked?: boolean;
+  is_hearted?: boolean;
+  reply_count?: string;
+  comment_id?: string;
 }
 
 // Video metadata interface
@@ -19,6 +47,21 @@ export interface VideoMetadata {
   id: string;
   title: string;
   channel: string;
+  // Optional fields from API
+  channel_id?: string;
+  description?: string;
+  view_count?: number;
+  duration?: number;
+  upload_date?: string;
+  is_live?: boolean;
+  is_upcoming?: boolean;
+  keywords?: string;
+}
+
+// Metadata extraction configuration
+export interface MetadataConfig {
+  selectedFields: MetadataField[];
+  columnOrder: MetadataField[];
 }
 
 // Track execution time to respect the time limits
@@ -88,11 +131,57 @@ export function isValidVideoNode(video: any): boolean {
  * Extract metadata from a video node
  */
 export function extractVideoMetadata(video: any): VideoMetadata {
-  return {
+  // Extract basic fields that are always available
+  const metadata: VideoMetadata = {
     id: video.id,
     title: video.title.toString(),
     channel: video.author.name,
   };
+
+  // Extract additional fields if they exist
+  if (video.author?.id) {
+    metadata.channel_id = video.author.id;
+  }
+  
+  if (video.description_snippet) {
+    metadata.description = video.description_snippet.toString();
+  } else if (video.description) {
+    metadata.description = video.description.toString();
+  }
+  
+  if (video.view_count !== undefined) {
+    metadata.view_count = typeof video.view_count === 'number' ? 
+      video.view_count : 
+      parseInt(video.view_count?.toString().replace(/[^0-9]/g, '') || '0');
+  }
+  
+  if (video.duration !== undefined) {
+    metadata.duration = typeof video.duration === 'number' ? 
+      video.duration : 
+      parseInt(video.duration?.toString() || '0');
+  }
+  
+  if (video.published) {
+    metadata.upload_date = video.published.toString();
+  }
+  
+  if (video.is_live !== undefined) {
+    metadata.is_live = !!video.is_live;
+  }
+  
+  if (video.is_upcoming !== undefined) {
+    metadata.is_upcoming = !!video.is_upcoming;
+  }
+  
+  if (video.keywords) {
+    if (Array.isArray(video.keywords)) {
+      metadata.keywords = video.keywords.join(', ');
+    } else {
+      metadata.keywords = video.keywords.toString();
+    }
+  }
+
+  return metadata;
 }
 
 /**
@@ -119,7 +208,8 @@ export function extractCommentData(
 
   if (!author || !text) return null;
 
-  return {
+  // Create comment data with basic fields
+  const commentData: CommentData = {
     id: metadata.id,
     title: metadata.title,
     channel: metadata.channel,
@@ -127,6 +217,26 @@ export function extractCommentData(
     comment: text,
     label: 0
   };
+
+  // Copy additional video metadata
+  if (metadata.channel_id) commentData.channel_id = metadata.channel_id;
+  if (metadata.description) commentData.description = metadata.description;
+  if (metadata.view_count !== undefined) commentData.view_count = metadata.view_count;
+  if (metadata.duration !== undefined) commentData.duration = metadata.duration;
+  if (metadata.upload_date) commentData.upload_date = metadata.upload_date;
+  if (metadata.is_live !== undefined) commentData.is_live = metadata.is_live;
+  if (metadata.is_upcoming !== undefined) commentData.is_upcoming = metadata.is_upcoming;
+  if (metadata.keywords) commentData.keywords = metadata.keywords;
+
+  // Extract additional comment-specific metadata
+  if (comment.comment_id) commentData.comment_id = comment.comment_id;
+  if (comment.published_time) commentData.published_time = comment.published_time;
+  if (comment.like_count) commentData.like_count = comment.like_count;
+  if (comment.is_liked !== undefined) commentData.is_liked = !!comment.is_liked;
+  if (comment.is_hearted !== undefined) commentData.is_hearted = !!comment.is_hearted;
+  if (comment.reply_count) commentData.reply_count = comment.reply_count;
+
+  return commentData;
 }
 
 /**
@@ -332,25 +442,29 @@ export async function scrapeYouTubeComments<T>(
 }
 
 /**
- * Convert comments data to CSV format
+ * Convert comments data to CSV format with customizable fields and order
  */
-export function convertToCSV(data: CommentData[]): string {
-  // Define headers in the requested order
-  const headers = ['label', 'author', 'comment', 'id', 'channel', 'title'];
+export function convertToCSV(data: CommentData[], metadataConfig?: MetadataConfig): string {
+  // Define headers based on config or use defaults
+  const headers = metadataConfig?.columnOrder || ['label', 'author', 'comment', 'id', 'channel', 'title'];
 
   // Create CSV header row
   let csv = headers.join(',') + '\n';
 
   // Add data rows
   data.forEach(item => {
-    const row = [
-      item.label.toString(),
-      escapeCSV(item.author),
-      escapeCSV(item.comment),
-      escapeCSV(item.id),
-      escapeCSV(item.channel),
-      escapeCSV(item.title)
-    ];
+    const row = headers.map(field => {
+      let value = item[field as keyof CommentData];
+      
+      // Handle undefined or non-string values
+      if (value === undefined || value === null) {
+        return '';
+      } else if (typeof value !== 'string') {
+        value = String(value);
+      }
+      
+      return escapeCSV(value);
+    });
 
     csv += row.join(',') + '\n';
   });

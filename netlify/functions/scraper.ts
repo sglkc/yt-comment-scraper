@@ -4,7 +4,9 @@ import {
   CommentData,
   VideoMetadata,
   SortBy,
-  UploadDate
+  UploadDate,
+  MetadataField,
+  MetadataConfig
 } from "../utils/youtube-scraper.js";
 
 /**
@@ -19,6 +21,20 @@ export default async function handler(req: Request, context: Context) {
   const maxComments = parseInt(url.searchParams.get('maxComments') || '500', 10);
   const uploadDate = url.searchParams.get('uploadDate') as UploadDate || 'week';
   const sortBy = url.searchParams.get('sortBy') as SortBy || 'view_count';
+
+  // Get metadata configuration
+  const selectedFields = url.searchParams.get('selectedFields') ? 
+    url.searchParams.get('selectedFields')!.split(',') as MetadataField[] : 
+    ['label', 'author', 'comment', 'id', 'channel', 'title'];
+  
+  const columnOrder = url.searchParams.get('columnOrder') ? 
+    url.searchParams.get('columnOrder')!.split(',') as MetadataField[] : 
+    selectedFields;
+    
+  const metadataConfig: MetadataConfig = {
+    selectedFields,
+    columnOrder
+  };
 
   const encoder = new TextEncoder();
 
@@ -65,6 +81,19 @@ export default async function handler(req: Request, context: Context) {
             },
             
             onComments: async (comments, metadata) => {
+              // Filter comments to only include selected fields
+              if (metadataConfig.selectedFields.length < Object.keys(comments[0] || {}).length) {
+                comments = comments.map(comment => {
+                  const filteredComment: any = {};
+                  metadataConfig.selectedFields.forEach(field => {
+                    if (comment[field as keyof CommentData] !== undefined) {
+                      filteredComment[field] = comment[field as keyof CommentData];
+                    }
+                  });
+                  return filteredComment as CommentData;
+                });
+              }
+              
               // Stream comments in batches
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                 type: 'comments',
