@@ -201,7 +201,7 @@ downloadCsvBtn.addEventListener('click', (e) => {
         iframe.style.display = 'none';
         document.body.appendChild(iframe);
 
-        // Set iframe src to download endpoint with params
+        // Set iframe src to download endpoint with params - FIX: Use correct Netlify Functions path
         iframe.src = `/.netlify/functions/download?${params.toString()}`;
 
         // Reset button state after a delay
@@ -244,48 +244,96 @@ streamCsvBtn.addEventListener('click', async (e) => {
     params.append('selectedFields', selectedFields.join(','));
     params.append('columnOrder', columnOrder.join(','));
 
-    // Show loading state
+    // Show loading state AND results container for real-time viewing
     loadingIndicator.style.display = 'flex';
+    resultsContainer.style.display = 'block'; // Show results container immediately
+
+    // Initialize the table header right away
+    updateTableHeader();
+
+    const streamStatus = document.getElementById('stream-status');
+    streamStatus.textContent = 'Connecting...';
+
+    // Display real-time stats container
+    const realTimeStats = document.getElementById('real-time-stats');
+    realTimeStats.style.display = 'flex';
+
+    // Reset real-time stat values
+    document.getElementById('current-video').textContent = '-';
+    document.getElementById('videos-processed').textContent = '0';
+    document.getElementById('comments-found').textContent = '0';
+    document.getElementById('time-elapsed').textContent = '0s';
+
+    // Start a timer for time elapsed
+    const startTime = Date.now();
+    const elapsedTimeInterval = setInterval(() => {
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        document.getElementById('time-elapsed').textContent = elapsed + 's';
+    }, 1000);
+
     streamCsvBtn.disabled = true;
     downloadCsvBtn.disabled = true;
-    resultsContainer.style.display = 'none';
 
     try {
         // Set up SSE connection
         const url = `/.netlify/functions/scraper?${params.toString()}`;
+        console.log('Connecting to EventSource URL:', url);
         const eventSource = new EventSource(url);
         document.getElementById('result-query').textContent = formData.get('query');
 
         // Handle incoming events
         eventSource.onmessage = (event) => {
             try {
+                console.log('Raw EventSource message:', event.data);
                 const data = JSON.parse(event.data);
+                console.log('Parsed EventSource data:', data);
 
                 switch (data.type) {
                     case 'info':
                         // Display query info
                         document.getElementById('result-query').textContent = data.query;
+                        streamStatus.textContent = 'Connected - Received info';
+                        break;
+
+                    case 'video':
+                        // Update current video being processed
+                        const videoTitle = data.video?.title || 'Unknown';
+                        const videoChannel = data.video?.channel || 'Unknown';
+                        document.getElementById('current-video').textContent = `${videoTitle} (${videoChannel})`;
+                        streamStatus.textContent = `Processing video ${data.videoNumber}: ${videoTitle}`;
                         break;
 
                     case 'comments':
                         // Process received comments
-                        processComments(data.data);
+                        if (data.data && Array.isArray(data.data)) {
+                            streamStatus.textContent = `Connected - Processing ${data.data.length} comments`;
+                            processComments(data.data);
+                        } else {
+                            console.error('Invalid comments data structure:', data);
+                            streamStatus.textContent = 'Error - Invalid comments data';
+                        }
                         break;
 
                     case 'progress':
                         // Update progress indicators
+                        document.getElementById('videos-processed').textContent = data.videosProcessed;
+                        document.getElementById('comments-found').textContent = data.commentsFound;
                         document.getElementById('result-videos').textContent = data.videosProcessed;
                         document.getElementById('result-comments').textContent = data.commentsFound;
+                        streamStatus.textContent = `Connected - ${data.videosProcessed} videos, ${data.commentsFound} comments`;
                         break;
 
                     case 'complete':
-                        // Show results and enable buttons
+                        // Show completion status but keep results visible
+                        clearInterval(elapsedTimeInterval);
                         streamCsvBtn.disabled = false;
                         downloadCsvBtn.disabled = false;
                         loadingIndicator.style.display = 'none';
-                        resultsContainer.style.display = 'block';
+                        // Note: We don't need to set resultsContainer.style.display = 'block' here as it's already visible
                         document.getElementById('result-videos').textContent = data.videosScraped;
                         document.getElementById('result-comments').textContent = data.totalComments;
+                        document.getElementById('time-elapsed').textContent = Math.round(data.timeElapsed) + 's';
+                        streamStatus.textContent = 'Complete';
 
                         // Close the event source
                         eventSource.close();
@@ -293,27 +341,43 @@ streamCsvBtn.addEventListener('click', async (e) => {
 
                     case 'error':
                         // Display error
+                        clearInterval(elapsedTimeInterval);
+                        streamStatus.textContent = `Error: ${data.message}`;
                         showError(data.message);
                         eventSource.close();
                         break;
+
+                    default:
+                        console.log('Unknown event type:', data.type);
+                        streamStatus.textContent = `Received unknown event: ${data.type}`;
                 }
             } catch (error) {
-                console.error('Error parsing event data:', error);
+                console.error('Error parsing event data:', error, event.data);
+                streamStatus.textContent = `Error parsing: ${error.message}`;
             }
         };
 
         // Handle connection open
         eventSource.onopen = () => {
-            document.getElementById('stream-status').textContent = 'Connected';
+            console.log('EventSource connection opened');
+            streamStatus.textContent = 'Connected - Waiting for data';
+            streamStatus.classList.add('connected');
         };
 
         // Handle errors
-        eventSource.onerror = () => {
+        eventSource.onerror = (err) => {
+            console.error('EventSource error:', err);
+            clearInterval(elapsedTimeInterval);
+            streamStatus.textContent = 'Connection error - check console logs';
+            streamStatus.classList.add('error');
             showError('Connection to server lost or timed out.');
             eventSource.close();
         };
 
     } catch (error) {
+        console.error('Error setting up EventSource:', error);
+        clearInterval(elapsedTimeInterval);
+        streamStatus.textContent = `Setup error: ${error.message}`;
         showError(`Error: ${error.message || 'Something went wrong'}`);
     }
 });

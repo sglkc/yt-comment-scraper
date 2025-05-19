@@ -97,7 +97,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">Metadata Fields to Extract:</label>
                     <div class="metadata-container">
@@ -167,6 +167,27 @@
                 <div class="bounce3"></div>
             </div>
             <p>Scraping comments... This may take a few moments.</p>
+            <p id="stream-status"></p>
+
+            <!-- Re-add the real-time stats section -->
+            <div class="real-time-stats" id="real-time-stats">
+                <div class="stat-item">
+                    <strong>Current Video</strong>
+                    <span id="current-video">-</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Videos Processed</strong>
+                    <span id="videos-processed">0</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Comments Found</strong>
+                    <span id="comments-found">0</span>
+                </div>
+                <div class="stat-item">
+                    <strong>Time Elapsed</strong>
+                    <span id="time-elapsed">0s</span>
+                </div>
+            </div>
         </div>
 
         <div id="results-container">

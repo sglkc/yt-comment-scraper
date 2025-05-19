@@ -488,6 +488,13 @@ table td:nth-child(2) {
 #stream-status {
     position: relative;
     transition: all 0.3s ease;
+    padding: 5px 8px;
+    border-radius: 5px;
+    margin-top: 10px;
+    font-size: 0.9rem;
+    text-align: center;
+    color: #666;
+    background-color: rgba(255, 255, 255, 0.5);
 }
 
 #stream-status:before {
@@ -500,8 +507,22 @@ table td:nth-child(2) {
     background-color: #fdcb6e;
 }
 
+#stream-status.connected {
+    color: var(--success-color);
+    font-weight: bold;
+    background-color: rgba(0, 184, 148, 0.1);
+    border-left: 3px solid var(--success-color);
+}
+
 #stream-status.connected:before {
     background-color: #00b894;
+}
+
+#stream-status.error {
+    color: var(--danger-color);
+    font-weight: bold;
+    background-color: rgba(214, 48, 49, 0.1);
+    border-left: 3px solid var(--danger-color);
 }
 
 #stream-status.error:before {
