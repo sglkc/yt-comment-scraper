@@ -385,12 +385,78 @@ export async function scrapeYouTubeComments<T>(
           await handlers.onComments(batchComments, metadata);
         }
 
+        // Continue fetching more comments from this video if available
+        let currentComments = comments;
+        let continuationFetchCount = 0;
+        const MAX_CONTINUATIONS = 10;
+
+        while (
+          currentComments.has_continuation &&
+          timer.hasTimeLeft() &&
+          commentsRemaining > 0 &&
+          counter.comments < params.maxVidComments &&
+          continuationFetchCount < MAX_CONTINUATIONS
+        ) {
+          try {
+            // Get the next page of comments
+            const continuation = await currentComments.getContinuation();
+            currentComments = continuation;
+            continuationFetchCount++;
+
+            // Process these comments
+            batchComments = [];
+
+            for (const { comment } of continuation.contents || []) {
+              if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
+                break;
+              }
+
+              const commentData = extractCommentData(comment, metadata);
+              if (commentData) {
+                videoComments.push(commentData);
+                batchComments.push(commentData);
+                allComments.push(commentData);
+                counter.comments++;
+                commentsRemaining--;
+
+                // Process comments in larger batches to reduce overhead
+                if (batchComments.length >= 20) {
+                  if (handlers.onComments) {
+                    await handlers.onComments(batchComments, metadata);
+                  }
+                  batchComments = [];
+                }
+
+                if (commentsRemaining <= 0) break;
+              }
+            }
+
+            // Process any remaining comments in the batch
+            if (batchComments.length > 0 && handlers.onComments) {
+              await handlers.onComments(batchComments, metadata);
+            }
+
+            // If we're out of time, break the loop
+            if (!timer.hasTimeLeft() || commentsRemaining <= 0) {
+              break;
+            }
+          } catch (error) {
+            if (handlers.onError) {
+              await handlers.onError(
+                error instanceof Error ? error : new Error(String(error)),
+                `processing continuation for video ${metadata.id}`
+              );
+            }
+            break;
+          }
+        }
+
         // Update commentContinuationData for the next page
-        if (comments.has_continuation && timer.hasTimeLeft() && commentsRemaining > 0) {
-          commentContinuationData = extractCommentContinuationData(comments);
+        if (currentComments.has_continuation && timer.hasTimeLeft() && commentsRemaining > 0) {
+          commentContinuationData = extractCommentContinuationData(currentComments);
         } else {
           commentContinuationData = null;
-          // Move to the next video if we're done with this one
+          // Only move to the next video if we've finished with this one
           videosProcessed++;
         }
 
@@ -453,8 +519,8 @@ export async function scrapeYouTubeComments<T>(
               counter.comments++;
               commentsRemaining--;
 
-              // Process comments in batches
-              if (batchComments.length >= 5) {
+              // Process comments in larger batches to reduce overhead
+              if (batchComments.length >= 20) {
                 if (handlers.onComments) {
                   await handlers.onComments(batchComments, metadata);
                 }
@@ -470,102 +536,78 @@ export async function scrapeYouTubeComments<T>(
             await handlers.onComments(batchComments, metadata);
           }
 
-          // Check if we have more comments to fetch and time left
-          if (comments.has_continuation && timer.hasTimeLeft() && commentsRemaining > 0 && counter.comments < params.maxVidComments) {
-            // Save continuation data instead of iterating through all continuations
-            commentContinuationData = extractCommentContinuationData(comments);
+          // Continue fetching more comments from this video if available
+          let currentComments = comments;
+          let continuationFetchCount = 0;
+          const MAX_CONTINUATIONS = 10;
 
-            // If we run out of time and there are still comments to fetch,
-            // we'll use this continuation data in the next run
-            if (!timer.hasTimeLeft()) {
+          while (
+            currentComments.has_continuation &&
+            timer.hasTimeLeft() &&
+            commentsRemaining > 0 &&
+            counter.comments < params.maxVidComments &&
+            continuationFetchCount < MAX_CONTINUATIONS
+          ) {
+            try {
+              // Get the next page of comments
+              const continuation = await currentComments.getContinuation();
+              currentComments = continuation;
+              continuationFetchCount++;
+
+              // Process these comments
+              batchComments = [];
+
+              for (const { comment } of continuation.contents || []) {
+                if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
+                  break;
+                }
+
+                const commentData = extractCommentData(comment, metadata);
+                if (commentData) {
+                  videoComments.push(commentData);
+                  batchComments.push(commentData);
+                  allComments.push(commentData);
+                  counter.comments++;
+                  commentsRemaining--;
+
+                  // Process comments in larger batches to reduce overhead
+                  if (batchComments.length >= 20) {
+                    if (handlers.onComments) {
+                      await handlers.onComments(batchComments, metadata);
+                    }
+                    batchComments = [];
+                  }
+
+                  if (commentsRemaining <= 0) break;
+                }
+              }
+
+              // Process any remaining comments in the batch
+              if (batchComments.length > 0 && handlers.onComments) {
+                await handlers.onComments(batchComments, metadata);
+              }
+
+              // If we're out of time, break the loop
+              if (!timer.hasTimeLeft() || commentsRemaining <= 0) {
+                break;
+              }
+            } catch (error) {
+              if (handlers.onError) {
+                await handlers.onError(
+                  error instanceof Error ? error : new Error(String(error)),
+                  `processing continuation for video ${metadata.id}`
+                );
+              }
               break;
             }
+          }
 
-            // Otherwise, process one continuation now using our new efficient method
-            if (commentContinuationData) {
-              try {
-                const continuation = await fetchCommentsContinuation(innertube, commentContinuationData);
-                batchComments = [];
-
-                for (const { comment } of continuation.contents || []) {
-                  if (counter.comments >= params.maxVidComments || !timer.hasTimeLeft() || commentsRemaining <= 0) {
-                    break;
-                  }
-
-                  const commentData = extractCommentData(comment, metadata);
-                  if (commentData) {
-                    videoComments.push(commentData);
-                    batchComments.push(commentData);
-                    allComments.push(commentData);
-                    counter.comments++;
-                    commentsRemaining--;
-
-                    // Process comments in batches
-                    if (batchComments.length >= 5) {
-                      if (handlers.onComments) {
-                        await handlers.onComments(batchComments, metadata);
-                      }
-                      batchComments = [];
-                    }
-
-                    if (commentsRemaining <= 0) break;
-                  }
-                }
-
-                // Process any remaining comments in the batch
-                if (batchComments.length > 0 && handlers.onComments) {
-                  await handlers.onComments(batchComments, metadata);
-                }
-
-                // Update continuation data for next time if needed
-                if (continuation.has_continuation && !timer.hasTimeLeft() && commentsRemaining > 0) {
-                  commentContinuationData = extractCommentContinuationData(continuation);
-                } else {
-                  commentContinuationData = null;
-                }
-
-              } catch (error) {
-                if (handlers.onError) {
-                  await handlers.onError(
-                    error instanceof Error ? error : new Error(String(error)),
-                    `comment continuation for video ${metadata.id}`
-                  );
-                }
-                commentContinuationData = null;
-              }
-            }
+          // Update commentContinuationData for the next page
+          if (currentComments.has_continuation && timer.hasTimeLeft() && commentsRemaining > 0) {
+            commentContinuationData = extractCommentContinuationData(currentComments);
           } else {
-            // There are no more comments to fetch for this video
             commentContinuationData = null;
-
-            // Move to the next video if we still have time and haven't reached our comment limit
-            if (timer.hasTimeLeft() && commentsRemaining > 0) {
-              if (handlers.onProgress) {
-                await handlers.onProgress({
-                  videosProcessed,
-                  commentsFound: params.maxComments - commentsRemaining,
-                  timeElapsed: timer.getElapsedTime() / 1000
-                });
-              }
-              // Don't break here, allow the loop to continue to the next video
-            }
           }
-
-          // Only increment videos processed if we're done with this video or out of time
-          if (!commentContinuationData || !timer.hasTimeLeft()) {
-            videosProcessed++;
-          }
-
-          if (handlers.onProgress) {
-            await handlers.onProgress({
-              videosProcessed,
-              commentsFound: params.maxComments - commentsRemaining,
-              timeElapsed: timer.getElapsedTime() / 1000
-            });
-          }
-
-          if (!timer.hasTimeLeft()) break;
-
         } catch (error) {
           if (handlers.onError) {
             await handlers.onError(
@@ -722,7 +764,7 @@ export async function fetchCommentsContinuation(
     } else if (response.on_response_received_actions_memo) {
       const comments = response.on_response_received_actions_memo.getType(YTNodes.Comment);
       if (comments && comments.length > 0) {
-        contents = { contents: comments.map(c => ({ comment: c })) };
+        contents = { contents: comments.map((c: any) => ({ comment: c })) };
       }
     }
 
