@@ -268,9 +268,12 @@ streamCsvBtn.addEventListener('click', async (e) => {
     // Initialize the table header right away
     updateTableHeader();
 
-    // Display real-time stats container
+    // Make sure real-time stats are visible and reset values
     const realTimeStats = document.getElementById('real-time-stats');
     realTimeStats.style.display = 'flex';
+
+    // Set processing status
+    document.getElementById('scraper-status').textContent = 'Processing...';
 
     // Reset real-time stat values
     document.getElementById('current-video').textContent = '-';
@@ -348,6 +351,9 @@ streamCsvBtn.addEventListener('click', async (e) => {
                         streamCsvBtn.disabled = false;
                         downloadCsvBtn.disabled = false;
                         loadingIndicator.style.display = 'none';
+
+                        // Set status to Complete
+                        document.getElementById('scraper-status').textContent = 'Complete!';
 
                         // Update the final session results with correct accumulated counts
                         const finalVideosCount = totalVideosScraped + data.videosScraped;
@@ -470,9 +476,12 @@ document.getElementById('continue-scraping').addEventListener('click', () => {
     // Initialize the table header right away
     updateTableHeader();
 
-    // Display real-time stats container
+    // Make sure real-time stats are visible and update status
     const realTimeStats = document.getElementById('real-time-stats');
     realTimeStats.style.display = 'flex';
+
+    // Set processing status
+    document.getElementById('scraper-status').textContent = 'Continuing...';
 
     // Reset real-time stat values
     document.getElementById('current-video').textContent = '-';
@@ -554,6 +563,9 @@ document.getElementById('continue-scraping').addEventListener('click', () => {
                         streamCsvBtn.disabled = false;
                         downloadCsvBtn.disabled = false;
                         loadingIndicator.style.display = 'none';
+
+                        // Set status to Complete
+                        document.getElementById('scraper-status').textContent = 'Complete!';
 
                         // Update the final session results with correct accumulated counts
                         const finalVideosCount = totalVideosScraped + data.videosScraped;

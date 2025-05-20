@@ -61,9 +61,11 @@
                             <input type="number" class="form-control" id="maxVidComments" name="maxVidComments" min="1" max="500" value="200">
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="maxComments" class="form-label">Total Max Comments:</label>
-                        <input type="number" class="form-control" id="maxComments" name="maxComments" min="1" max="1000" value="600">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="maxComments" class="form-label">Total Max Comments:</label>
+                            <input type="number" class="form-control" id="maxComments" name="maxComments" min="1" max="1000" value="600">
+                        </div>
                     </div>
                 </div>
 
@@ -154,6 +156,30 @@
 
         <div id="error-message" class="alert alert-danger"></div>
 
+        <!-- Real-time stats section now outside of loading indicator -->
+        <div class="real-time-stats" id="real-time-stats">
+            <div class="stat-item">
+                <strong>STATUS</strong>
+                <span id="scraper-status">Complete!</span>
+            </div>
+            <div class="stat-item">
+                <strong>ELAPSED TIME</strong>
+                <span id="time-elapsed">0s</span>
+            </div>
+            <div class="stat-item">
+                <strong>VIDEOS PROCESSED</strong>
+                <span id="videos-processed">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>COMMENTS FOUND</strong>
+                <span id="comments-found">0</span>
+            </div>
+            <div class="stat-item">
+                <strong>CURRENT VIDEO</strong>
+                <span id="current-video">-</span>
+            </div>
+        </div>
+
         <div id="loading-indicator">
             <div class="spinner">
                 <div class="bounce1"></div>
@@ -161,26 +187,6 @@
                 <div class="bounce3"></div>
             </div>
             <p>Scraping comments... This may take a few moments.</p>
-
-            <!-- Re-add the real-time stats section -->
-            <div class="real-time-stats" id="real-time-stats">
-                <div class="stat-item">
-                    <strong>Current Video</strong>
-                    <span id="current-video">-</span>
-                </div>
-                <div class="stat-item">
-                    <strong>Videos Processed</strong>
-                    <span id="videos-processed">0</span>
-                </div>
-                <div class="stat-item">
-                    <strong>Comments Found</strong>
-                    <span id="comments-found">0</span>
-                </div>
-                <div class="stat-item">
-                    <strong>Time Elapsed</strong>
-                    <span id="time-elapsed">0s</span>
-                </div>
-            </div>
         </div>
 
         <div id="results-container">

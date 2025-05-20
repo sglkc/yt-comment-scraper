@@ -237,8 +237,8 @@ h1::after {
 #loading-indicator {
     display: none;
     text-align: center;
-    margin: 4rem 0;
-    grid-template-rows: auto auto auto;
+    margin: 2rem 0; /* Reduced margin since stats are separate */
+    grid-template-rows: auto auto;
     gap: 1.5rem;
     justify-items: center;
 }

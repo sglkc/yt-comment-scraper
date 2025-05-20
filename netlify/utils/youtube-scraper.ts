@@ -98,7 +98,12 @@ export interface Timer {
  * Creates an Innertube client with default settings
  */
 export async function createYouTubeClient() {
-  return await Innertube.create({ lang: 'id', location: 'ID' });
+  return await Innertube.create({
+    lang: 'id',
+    location: 'ID',
+    retrieve_player: false,
+    generate_session_locally: true,
+  });
 }
 
 /**
