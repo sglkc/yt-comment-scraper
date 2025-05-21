@@ -394,8 +394,8 @@ export async function scrapeYouTubeComments<T>(
   const allComments: CommentData[] = [];
   let videosProcessed = params.startVideoIndex || 0;
   let commentsRemaining = params.maxComments;
-  let currentVideoId = params.lastVideoId;
-  let continuationCount = params.lastCommentIndex || 0; // Number of comment page continuations
+  let currentVideoId = params.lastVideoId || null;
+  let continuationCount = params.lastCommentIndex || 0;
 
   try {
     if (handlers.onStart) {
@@ -414,7 +414,6 @@ export async function scrapeYouTubeComments<T>(
     // Skip to specific video index if provided
     if (params.startVideoIndex && params.startVideoIndex > 0) {
       if (params.continuationToken) {
-        // Use the continuation token to fetch the exact search results page
         search = await search.getContinuation(params.continuationToken);
       } else {
         // Skip to the approximate position by continuing search
@@ -431,38 +430,32 @@ export async function scrapeYouTubeComments<T>(
       await handlers.onSearch(search);
     }
 
-    // If we have a last video ID, try to continue with that
-    if (currentVideoId) {
+    // Process unfinished video first if we have one
+    if (currentVideoId && continuationCount > 0) {
       try {
-        // Find the metadata for the current video
-        let metadata: VideoMetadata | null = null;
-        for (const video of search.videos) {
-          if (video.id === currentVideoId && isValidVideoNode(video)) {
-            metadata = extractVideoMetadata(video);
-            break;
-          }
+        // Create minimal metadata for the video
+        const metadata = {
+          id: currentVideoId,
+          title: 'Continuing Video',
+          channel: 'Continuing Channel'
+        };
+
+        if (handlers.onVideo) {
+          await handlers.onVideo(metadata, videosProcessed + 1);
         }
 
-        // If we couldn't find the video in current results, create minimal metadata
-        if (!metadata) {
-          metadata = {
-            id: currentVideoId,
-            title: 'Continuing Comments',
-            channel: 'Unknown'
-          };
-        }
-
-        // Fetch comments for the video and continue from specified continuation page
+        // Fetch comments for the video
         let comments = await innertube.getComments(currentVideoId, 'NEWEST_FIRST');
 
-        // We need to advance to the correct continuation page
+        // Advance to the last comment page we were processing
         for (let i = 0; i < continuationCount && comments.has_continuation; i++) {
           comments = await comments.getContinuation();
         }
 
+        // Setup counter with the existing continuation count
         const counter = { comments: 0, continuationCount };
 
-        // Process comments recursively
+        // Process comments from where we left off
         const result = await processCommentsRecursively(
           comments,
           metadata,
@@ -483,6 +476,25 @@ export async function scrapeYouTubeComments<T>(
           videosProcessed++;
           currentVideoId = null;
           continuationCount = 0;
+        } else if (!timer.hasTimeLeft() || commentsRemaining <= 0) {
+          // We're stopping with this video not fully processed
+          if (handlers.onComplete) {
+            await handlers.onComplete({
+              videosScraped: videosProcessed,
+              totalComments: params.maxComments - commentsRemaining,
+              timeElapsed: timer.getElapsedTime() / 1000,
+              timedOut: !timer.hasTimeLeft(),
+              lastVideoIndex: videosProcessed,
+              lastCommentIndex: continuationCount,
+              continuationToken: search?.has_continuation ? search.continuation : undefined,
+              lastVideoId: currentVideoId
+            });
+          }
+
+          return {
+            comments: allComments,
+            videosScraped: videosProcessed
+          };
         }
 
         if (handlers.onProgress) {
@@ -500,20 +512,47 @@ export async function scrapeYouTubeComments<T>(
             `continuation for video ${currentVideoId}`
           );
         }
+        videosProcessed++;
         currentVideoId = null;
         continuationCount = 0;
       }
     }
 
-    // Process search results
+    // Skip videos we've already processed by finding our start position
+    let skipCount = 0;
+    let foundStartIdx = false;
+    let startIdx = 0;
+
+    // Only need to find a starting position if we haven't processed any videos yet
+    if (videosProcessed === 0 && params.startVideoIndex && params.startVideoIndex > 0) {
+      // Process search results - loop through to find our position
+      while (search && !foundStartIdx) {
+        for (let i = 0; i < search.videos.length; i++) {
+          if (skipCount >= params.startVideoIndex) {
+            startIdx = i;
+            foundStartIdx = true;
+            break;
+          }
+          skipCount++;
+        }
+
+        // If we haven't found our start position and there are more pages
+        if (!foundStartIdx && search.has_continuation) {
+          search = await search.getContinuation();
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Process search results from our position
     while (search && videosProcessed < params.maxVideos && commentsRemaining > 0 && timer.hasTimeLeft()) {
-      for (const video of search.videos) {
+      // Process videos in this search batch
+      for (let i = startIdx; i < search.videos.length; i++) {
+        const video = search.videos[i];
         if (commentsRemaining <= 0 || videosProcessed >= params.maxVideos || !timer.hasTimeLeft()) break;
 
         if (!isValidVideoNode(video)) continue;
-
-        // Skip videos we've already processed
-        if (currentVideoId === video.id) continue;
 
         const metadata = extractVideoMetadata(video);
         currentVideoId = video.id;
@@ -582,11 +621,9 @@ export async function scrapeYouTubeComments<T>(
       // Check if we need to fetch more videos
       if (!search.has_continuation || commentsRemaining <= 0 || !timer.hasTimeLeft()) break;
 
-      // Don't get next page if we're still processing comments from a video
-      if (currentVideoId) break;
-
       // Get next page of search results
       search = await search.getContinuation();
+      startIdx = 0; // Reset start index for new search page
     }
 
     if (handlers.onComplete) {
@@ -596,9 +633,9 @@ export async function scrapeYouTubeComments<T>(
         timeElapsed: timer.getElapsedTime() / 1000,
         timedOut: !timer.hasTimeLeft(),
         lastVideoIndex: videosProcessed,
-        lastCommentIndex: continuationCount, // Return the continuation count
+        lastCommentIndex: continuationCount,
         continuationToken: search?.has_continuation ? search.continuation : undefined,
-        lastVideoId: currentVideoId || undefined
+        lastVideoId: currentVideoId
       });
     }
 
