@@ -20,14 +20,15 @@ let totalCommentsFound = 0;
 let selectedFields = ['author', 'comment', 'id', 'channel', 'title'];
 let columnOrder = [...selectedFields];
 
-// Scraping state management
+// Scraping state management - Using continuationCount instead of comment array index
 let scrapingState = {
     lastQuery: '',
     lastVideoIndex: 0,
     lastVideoId: '',
-    commentContinuationData: null, // Store comment continuation data from YouTube's API
-    searchParams: null,
-    continuationPossible: false
+    continuationCount: 0, // Number of comment pages loaded (getContinuation calls)
+    continuationToken: null,
+    continuationPossible: false,
+    searchParams: null
 };
 
 // Field labels for display
@@ -365,10 +366,10 @@ streamCsvBtn.addEventListener('click', async (e) => {
 
                         // Save state for continuation
                         scrapingState = {
-                            lastQuery: scrapingState.lastQuery, // Keep the same query
+                            lastQuery: formData.get('query'),
                             lastVideoIndex: data.lastVideoIndex || 0,
                             lastVideoId: data.lastVideoId,
-                            commentContinuationData: data.commentContinuationData,
+                            continuationCount: data.lastCommentIndex || 0, // Store lastCommentIndex as continuationCount
                             continuationToken: data.continuationToken,
                             continuationPossible: !!data.continuationPossible,
                             searchParams: params // Save the parameters for next continuation
@@ -433,219 +434,219 @@ streamCsvBtn.addEventListener('click', async (e) => {
     }
 });
 
-// Continue scraping from where we left off
+// Continue button event handler for continuing from previous scraping session
 document.getElementById('continue-scraping').addEventListener('click', () => {
-    // Ensure we have a valid state
-    if (!scrapingState.continuationPossible || !scrapingState.searchParams) {
-        showMessage('Cannot continue scraping. Please start a new search.', true);
-        return;
-    }
+  // Ensure we have a valid state
+  if (!scrapingState.continuationPossible || !scrapingState.searchParams) {
+    showMessage('Cannot continue scraping. Please start a new search.', true);
+    return;
+  }
 
-    // Store current counts before continuing
-    totalVideosScraped = parseInt(document.getElementById('result-videos').textContent || '0');
-    totalCommentsFound = parseInt(document.getElementById('result-comments').textContent || '0');
+  // Store current counts before continuing
+  totalVideosScraped = parseInt(document.getElementById('result-videos').textContent || '0');
+  totalCommentsFound = parseInt(document.getElementById('result-comments').textContent || '0');
 
-    // Preserve current results
-    errorMessage.style.display = 'none';
-    errorMessage.textContent = '';
+  // Preserve current results
+  errorMessage.style.display = 'none';
+  errorMessage.textContent = '';
 
-    // Clone the search parameters
-    const params = new URLSearchParams(scrapingState.searchParams.toString());
+  // Clone the search parameters
+  const params = new URLSearchParams(scrapingState.searchParams.toString());
 
-    // Add continuation parameters
-    if (scrapingState.lastVideoIndex) {
-        params.set('startVideoIndex', scrapingState.lastVideoIndex);
-    }
+  // Add the simplified continuation parameters
+  if (scrapingState.lastVideoIndex) {
+    params.set('startVideoIndex', scrapingState.lastVideoIndex);
+  }
+  
+  if (scrapingState.continuationCount) {
+    params.set('lastCommentIndex', scrapingState.continuationCount); // Use lastCommentIndex for API compatibility
+  }
 
-    if (scrapingState.continuationToken) {
-        params.set('continuationToken', scrapingState.continuationToken);
-    }
+  if (scrapingState.continuationToken) {
+    params.set('continuationToken', scrapingState.continuationToken);
+  }
 
-    if (scrapingState.lastVideoId) {
-        params.set('lastVideoId', scrapingState.lastVideoId);
-    }
+  if (scrapingState.lastVideoId) {
+    params.set('lastVideoId', scrapingState.lastVideoId);
+  }
 
-    // Add comment continuation data if available - need to stringify as it's a complex object
-    if (scrapingState.commentContinuationData) {
-        params.set('commentContinuation', JSON.stringify(scrapingState.commentContinuationData));
-    }
+  // Show loading state
+  loadingIndicator.style.display = 'grid';
 
-    // Show loading state
-    loadingIndicator.style.display = 'grid';
+  // Initialize the table header right away
+  updateTableHeader();
 
-    // Initialize the table header right away
-    updateTableHeader();
+  // Make sure real-time stats are visible and update status
+  const realTimeStats = document.getElementById('real-time-stats');
+  realTimeStats.style.display = 'flex';
 
-    // Make sure real-time stats are visible and update status
-    const realTimeStats = document.getElementById('real-time-stats');
-    realTimeStats.style.display = 'flex';
+  // Set processing status
+  document.getElementById('scraper-status').textContent = 'Continuing...';
 
-    // Set processing status
-    document.getElementById('scraper-status').textContent = 'Continuing...';
+  // Reset real-time stat values
+  document.getElementById('current-video').textContent = '-';
+  document.getElementById('videos-processed').textContent = '0';
+  document.getElementById('comments-found').textContent = '0';
+  document.getElementById('time-elapsed').textContent = '0s';
 
-    // Reset real-time stat values
-    document.getElementById('current-video').textContent = '-';
-    document.getElementById('videos-processed').textContent = '0';
-    document.getElementById('comments-found').textContent = '0';
-    document.getElementById('time-elapsed').textContent = '0s';
+  // Start a timer for time elapsed
+  const startTime = Date.now();
+  const elapsedTimeInterval = setInterval(() => {
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    document.getElementById('time-elapsed').textContent = elapsed + 's';
+  }, 1000);
 
-    // Start a timer for time elapsed
-    const startTime = Date.now();
-    const elapsedTimeInterval = setInterval(() => {
-        const elapsed = Math.round((Date.now() - startTime) / 1000);
-        document.getElementById('time-elapsed').textContent = elapsed + 's';
-    }, 1000);
+  // Disable buttons during scraping
+  streamCsvBtn.disabled = true;
+  downloadCsvBtn.disabled = true;
+  document.getElementById('continue-scraping').style.display = 'none';
 
-    // Disable buttons during scraping
-    streamCsvBtn.disabled = true;
-    downloadCsvBtn.disabled = true;
-    document.getElementById('continue-scraping').style.display = 'none';
+  try {
+    // Set up SSE connection with continuation parameters
+    const url = `/.netlify/functions/scraper?${params.toString()}`;
+    console.log('Continuing scraping with URL:', url);
+    const eventSource = new EventSource(url);
 
-    try {
-        // Set up SSE connection with continuation parameters
-        const url = `/.netlify/functions/scraper?${params.toString()}`;
-        console.log('Continuing scraping with URL:', url);
-        const eventSource = new EventSource(url);
+    // Show the query we're continuing
+    document.getElementById('result-query').textContent = scrapingState.lastQuery;
+    showMessage(`Continuing scraping for "${scrapingState.lastQuery}"...`, false);
 
-        // Show the query we're continuing
-        document.getElementById('result-query').textContent = scrapingState.lastQuery;
-        showMessage(`Continuing scraping for "${scrapingState.lastQuery}"...`, false);
+    // Handle incoming events - same as the initial scraper event handler
+    eventSource.onmessage = (event) => {
+      try {
+        console.log('Raw EventSource message:', event.data);
+        const data = JSON.parse(event.data);
+        console.log('Parsed EventSource data:', data);
 
-        // Use the existing event handlers for all events
-        // This uses the same event handlers as defined in the streamCsvBtn click event
-        eventSource.onmessage = (event) => {
-            try {
-                console.log('Raw EventSource message:', event.data);
-                const data = JSON.parse(event.data);
-                console.log('Parsed EventSource data:', data);
+        switch (data.type) {
+          case 'info':
+            // Display query info
+            document.getElementById('result-query').textContent = data.query;
+            showMessage('Connected - Continuing scrape from previous position', false);
+            break;
 
-                switch (data.type) {
-                    case 'info':
-                        // Display query info
-                        document.getElementById('result-query').textContent = data.query;
-                        showMessage('Connected - Continuing scrape from previous position', false);
-                        break;
+          case 'video':
+            // Update current video being processed
+            const videoTitle = data.video?.title || 'Unknown';
+            const videoChannel = data.video?.channel || 'Unknown';
+            document.getElementById('current-video').textContent = `${videoTitle} (${videoChannel})`;
+            showMessage(`Processing video ${data.videoNumber}: ${videoTitle}`, false);
+            break;
 
-                    case 'video':
-                        // Update current video being processed
-                        const videoTitle = data.video?.title || 'Unknown';
-                        const videoChannel = data.video?.channel || 'Unknown';
-                        document.getElementById('current-video').textContent = `${videoTitle} (${videoChannel})`;
-                        showMessage(`Processing video ${data.videoNumber}: ${videoTitle}`, false);
-                        break;
-
-                    case 'comments':
-                        // Process received comments
-                        if (data.data && Array.isArray(data.data)) {
-                            showMessage(`Processing ${data.data.length} new comments`, false);
-                            processComments(data.data);
-                        } else {
-                            console.error('Invalid comments data structure:', data);
-                            showMessage('Error - Invalid comments data', true);
-                        }
-                        break;
-
-                    case 'progress':
-                        // Update progress indicators for the current session
-                        document.getElementById('videos-processed').textContent = data.videosProcessed;
-                        document.getElementById('comments-found').textContent = data.commentsFound;
-
-                        // Update total results adding to previous counts
-                        document.getElementById('result-videos').textContent = totalVideosScraped + data.videosProcessed;
-                        document.getElementById('result-comments').textContent = totalCommentsFound + data.commentsFound;
-
-                        showMessage(`Progress: ${data.videosProcessed} videos, ${data.commentsFound} comments`, false);
-                        break;
-
-                    case 'complete':
-                        // Show completion status but keep results visible
-                        clearInterval(elapsedTimeInterval);
-                        streamCsvBtn.disabled = false;
-                        downloadCsvBtn.disabled = false;
-                        loadingIndicator.style.display = 'none';
-
-                        // Set status to Complete
-                        document.getElementById('scraper-status').textContent = 'Complete!';
-
-                        // Update the final session results with correct accumulated counts
-                        const finalVideosCount = totalVideosScraped + data.videosScraped;
-                        const finalCommentsCount = totalCommentsFound + data.totalComments;
-
-                        document.getElementById('result-videos').textContent = finalVideosCount;
-                        document.getElementById('result-comments').textContent = finalCommentsCount;
-                        document.getElementById('time-elapsed').textContent = Math.round(data.timeElapsed) + 's';
-
-                        // Save state for continuation
-                        scrapingState = {
-                            lastQuery: scrapingState.lastQuery, // Keep the same query
-                            lastVideoIndex: data.lastVideoIndex || 0,
-                            continuationToken: data.continuationToken,
-                            continuationPossible: !!data.continuationPossible,
-                            searchParams: params // Save the parameters for next continuation
-                        };
-
-                        // Show continue button if continuation is possible
-                        const continueBtn = document.getElementById('continue-scraping');
-                        if (data.continuationPossible) {
-                            continueBtn.style.display = 'inline-block';
-                            showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. You can continue scraping to get more comments.`, false);
-                        } else {
-                            continueBtn.style.display = 'none';
-                            showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. No more comments to fetch.`, false);
-                        }
-
-                        // Close the event source
-                        eventSource.close();
-                        break;
-
-                    case 'error':
-                        // Display error
-                        clearInterval(elapsedTimeInterval);
-                        showMessage(data.message, true);
-                        streamCsvBtn.disabled = false;
-                        downloadCsvBtn.disabled = false;
-                        eventSource.close();
-                        break;
-
-                    default:
-                        console.log('Unknown event type:', data.type);
-                        showMessage(`Received unknown event: ${data.type}`, true);
-                }
-            } catch (error) {
-                console.error('Error parsing event data:', error, event.data);
-                showMessage(`Error parsing data: ${error.message}`, true);
-            }
-        };
-
-        // Handle connection open
-        eventSource.onopen = () => {
-            console.log('EventSource connection opened for continuation');
-            showMessage('Connected - Continuing scraping', false);
-        };
-
-        // Handle errors
-        eventSource.onerror = (err) => {
-            const seconds = Number(document.getElementById('time-elapsed').textContent.match(/\d+/)?.[0] || '0')
-
-            if (seconds >= 10) {
-              showMessage('Time limit has been reached.', true);
+          case 'comments':
+            // Process received comments
+            if (data.data && Array.isArray(data.data)) {
+              showMessage(`Processing ${data.data.length} new comments`, false);
+              processComments(data.data);
             } else {
-              showMessage('Connection to server lost or timed out.', true);
+              console.error('Invalid comments data structure:', data);
+              showMessage('Error - Invalid comments data', true);
             }
+            break;
 
-            console.error('EventSource error:', err);
+          case 'progress':
+            // Update progress indicators for the current session
+            document.getElementById('videos-processed').textContent = data.videosProcessed;
+            document.getElementById('comments-found').textContent = data.commentsFound;
+
+            // Update total results adding to previous counts
+            document.getElementById('result-videos').textContent = totalVideosScraped + data.videosProcessed;
+            document.getElementById('result-comments').textContent = totalCommentsFound + data.commentsFound;
+
+            showMessage(`Progress: ${data.videosProcessed} videos, ${data.commentsFound} comments`, false);
+            break;
+
+          case 'complete':
+            // Show completion status but keep results visible
             clearInterval(elapsedTimeInterval);
             streamCsvBtn.disabled = false;
             downloadCsvBtn.disabled = false;
+            loadingIndicator.style.display = 'none';
+
+            // Set status to Complete
+            document.getElementById('scraper-status').textContent = 'Complete!';
+
+            // Update the final session results with correct accumulated counts
+            const finalVideosCount = totalVideosScraped + data.videosScraped;
+            const finalCommentsCount = totalCommentsFound + data.totalComments;
+
+            document.getElementById('result-videos').textContent = finalVideosCount;
+            document.getElementById('result-comments').textContent = finalCommentsCount;
+            document.getElementById('time-elapsed').textContent = Math.round(data.timeElapsed) + 's';
+
+            // Save state for potential future continuation
+            scrapingState = {
+              lastQuery: scrapingState.lastQuery,
+              lastVideoIndex: data.lastVideoIndex || 0,
+              lastVideoId: data.lastVideoId || null,
+              continuationCount: data.lastCommentIndex || 0, // Fix: use lastCommentIndex from API response
+              continuationToken: data.continuationToken || null,
+              continuationPossible: !!data.continuationPossible,
+              searchParams: params
+            };
+
+            // Show continue button if continuation is possible
+            const continueBtn = document.getElementById('continue-scraping');
+            if (data.continuationPossible) {
+              continueBtn.style.display = 'inline-block';
+              showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. You can continue scraping to get more comments.`, false);
+            } else {
+              continueBtn.style.display = 'none';
+              showMessage(`Scraping complete! Total: ${finalCommentsCount} comments from ${finalVideosCount} videos. No more comments to fetch.`, false);
+            }
+
+            // Close the event source
             eventSource.close();
-        };
-    } catch (error) {
-        console.error('Error setting up continuation EventSource:', error);
-        clearInterval(elapsedTimeInterval);
-        showMessage(`Error: ${error.message || 'Something went wrong'}`, true);
-        streamCsvBtn.disabled = false;
-        downloadCsvBtn.disabled = false;
-    }
+            break;
+
+          case 'error':
+            // Display error
+            clearInterval(elapsedTimeInterval);
+            showMessage(data.message, true);
+            streamCsvBtn.disabled = false;
+            downloadCsvBtn.disabled = false;
+            eventSource.close();
+            break;
+
+          default:
+            console.log('Unknown event type:', data.type);
+            showMessage(`Received unknown event: ${data.type}`, true);
+        }
+      } catch (error) {
+        console.error('Error parsing event data:', error, event.data);
+        showMessage(`Error parsing data: ${error.message}`, true);
+      }
+    };
+
+    // Handle connection open
+    eventSource.onopen = () => {
+      console.log('EventSource connection opened for continuation');
+      showMessage('Connected - Continuing scraping', false);
+    };
+
+    // Handle errors
+    eventSource.onerror = (err) => {
+      const seconds = Number(document.getElementById('time-elapsed').textContent.match(/\d+/)?.[0] || '0')
+
+      if (seconds >= 10) {
+        showMessage('Time limit has been reached.', true);
+      } else {
+        showMessage('Connection to server lost or timed out.', true);
+      }
+
+      console.error('EventSource error:', err);
+      clearInterval(elapsedTimeInterval);
+      streamCsvBtn.disabled = false;
+      downloadCsvBtn.disabled = false;
+      eventSource.close();
+    };
+  } catch (error) {
+    console.error('Error setting up continuation EventSource:', error);
+    clearInterval(elapsedTimeInterval);
+    showMessage(`Error: ${error.message || 'Something went wrong'}`, true);
+    streamCsvBtn.disabled = false;
+    downloadCsvBtn.disabled = false;
+  }
 });
 
 // Process comments received from stream

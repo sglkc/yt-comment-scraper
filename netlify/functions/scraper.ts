@@ -6,8 +6,7 @@ import {
   SortBy,
   UploadDate,
   MetadataField,
-  MetadataConfig,
-  CommentContinuationData
+  MetadataConfig
 } from "../utils/youtube-scraper.js";
 
 /**
@@ -25,19 +24,9 @@ export default async function handler(req: Request, context: Context) {
 
   // Get continuation parameters
   const startVideoIndex = parseInt(url.searchParams.get('startVideoIndex') || '0', 10);
+  const lastCommentIndex = parseInt(url.searchParams.get('lastCommentIndex') || '0', 10); 
   const continuationToken = url.searchParams.get('continuationToken') || undefined;
   const lastVideoId = url.searchParams.get('lastVideoId') || undefined;
-
-  // Get comment continuation data if available (need to parse from JSON string)
-  let commentContinuationData: CommentContinuationData | undefined = undefined;
-  const commentContinuationStr = url.searchParams.get('commentContinuation');
-  if (commentContinuationStr) {
-    try {
-      commentContinuationData = JSON.parse(commentContinuationStr) as CommentContinuationData;
-    } catch (error) {
-      console.error('Failed to parse comment continuation data:', error);
-    }
-  }
 
   // Get metadata configuration
   const selectedFields = url.searchParams.get('selectedFields') ?
@@ -70,9 +59,9 @@ export default async function handler(req: Request, context: Context) {
             sortBy,
             timer: 8000,
             startVideoIndex,
+            lastCommentIndex,
             continuationToken,
-            lastVideoId,
-            commentContinuationData
+            lastVideoId
           },
           {
             onStart: async () => {
@@ -150,13 +139,13 @@ export default async function handler(req: Request, context: Context) {
                 timeElapsed: stats.timeElapsed,
                 timedOut: stats.timedOut,
                 lastVideoIndex: stats.lastVideoIndex,
+                lastCommentIndex: stats.lastCommentIndex,
                 continuationToken: stats.continuationToken,
-                commentContinuationData: stats.commentContinuationData,
                 lastVideoId: stats.lastVideoId,
                 continuationPossible: stats.timedOut &&
                   (stats.lastVideoIndex > 0 ||
                    stats.continuationToken ||
-                   stats.commentContinuationData)
+                   stats.lastVideoId)
               })}\n\n`));
             }
           }
