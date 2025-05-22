@@ -434,11 +434,8 @@ export async function scrapeYouTubeComments<T>(
     if (currentVideoId && continuationCount > 0) {
       try {
         // Create minimal metadata for the video
-        const metadata = {
-          id: currentVideoId,
-          title: 'Continuing Video',
-          channel: 'Continuing Channel'
-        };
+        const videos = await innertube.search(currentVideoId, { sort_by: 'relevance' })
+        const metadata = extractVideoMetadata(videos.videos.at(0));
 
         if (handlers.onVideo) {
           await handlers.onVideo(metadata, videosProcessed + 1);
