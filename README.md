@@ -12,6 +12,10 @@
 - Filter videos by upload date
 - Sort videos by relevance, view count, or upload date
 - Configurable limits for videos and comments
+- Customizable metadata fields selection
+- Drag-and-drop column order customization for CSV exports
+- Real-time statistics during scraping
+- Continue scraping from where you left off
 
 ## Local Development
 
@@ -79,14 +83,20 @@ The download endpoint collects all comments before responding with a complete CS
 
 Both endpoints accept the same parameters:
 
-| Parameter      | Type     | Description                                | Default         |
-|----------------|----------|--------------------------------------------|-----------------|
-| query          | string   | Search query for YouTube videos            | "news"          |
-| maxVideos      | number   | Maximum number of videos to process        | 20              |
-| maxVidComments | number   | Maximum comments to retrieve per video     | 100             |
-| maxComments    | number   | Total maximum comments to retrieve         | 500             |
-| uploadDate     | string   | Filter videos by upload date               | "week"          |
-| sortBy         | string   | Sort videos by specific criteria           | "view_count"    |
+| Parameter          | Type     | Description                                | Default         |
+|--------------------|----------|--------------------------------------------|-----------------|
+| query              | string   | Search query for YouTube videos            | "news"          |
+| maxVideos          | number   | Maximum number of videos to process        | 20              |
+| maxVidComments     | number   | Maximum comments to retrieve per video     | 100             |
+| maxComments        | number   | Total maximum comments to retrieve         | 500             |
+| uploadDate         | string   | Filter videos by upload date               | "week"          |
+| sortBy             | string   | Sort videos by specific criteria           | "view_count"    |
+| selectedFields     | string   | Comma-separated list of metadata fields    | "author,comment,id,channel,title" |
+| columnOrder        | string   | Comma-separated list defining column order | Same as selectedFields |
+| startVideoIndex    | number   | Index to resume video scraping from        | 0               |
+| lastCommentIndex   | number   | Index to resume comment scraping from      | 0               |
+| continuationToken  | string   | Token to continue YouTube API pagination   | undefined       |
+| lastVideoId        | string   | ID of last video processed in previous run | undefined       |
 
 #### Upload Date Options
 - `hour` - Last hour
@@ -106,6 +116,21 @@ Both endpoints accept the same parameters:
 **Streaming API (real-time updates):**
 ```
 GET /api/scraper?query=indonesia+news&maxVideos=30&maxVidComments=200&maxComments=800
+```
+
+**Custom metadata fields selection:**
+```
+GET /api/scraper?query=tech+review&selectedFields=author,comment,publishedTime,likeCount,channel,title
+```
+
+**Custom column ordering:**
+```
+GET /api/download?query=gaming&selectedFields=author,comment,channel,title&columnOrder=title,channel,author,comment
+```
+
+**Continuation from previous scraping session:**
+```
+GET /api/scraper?query=breaking+news&startVideoIndex=15&lastCommentIndex=42&continuationToken=EiYSC3...&lastVideoId=dQw4w9WgXcQ
 ```
 
 **CSV Download API (direct download):**
@@ -168,7 +193,12 @@ The streaming API returns events in the following format:
   "videosScraped": 20,
   "totalComments": 500,
   "timeElapsed": 9.8,
-  "timedOut": false
+  "timedOut": false,
+  "lastVideoIndex": 15,
+  "lastCommentIndex": 42,
+  "continuationToken": "EiYSC3...",
+  "lastVideoId": "dQw4w9WgXcQ",
+  "continuationPossible": true
 }
 ```
 
@@ -216,6 +246,49 @@ The project is configured for Netlify deployment:
 3. Deploy with the following settings:
    - Build command: `npm run build` or `pnpm build`
    - Publish directory: `dist`
+
+## Advanced Features
+
+### Customizable Metadata Fields
+
+The scraper allows you to select which metadata fields to include in your results:
+
+#### Comment Fields
+- Author
+- Comment
+- Published Time
+- Like Count
+- Reply Count
+- Comment ID
+- Is Liked
+- Is Hearted
+
+#### Video Fields
+- Video ID
+- Title
+- Channel
+- Channel ID
+- Description
+- View Count
+- Duration
+- Upload Date
+- Is Live
+- Is Upcoming
+- Keywords
+
+### Column Order Customization
+
+You can customize the order of columns in the exported CSV by dragging and dropping the field names in the interface. This allows you to arrange the data in the most useful way for your specific needs.
+
+### Continuation Scraping
+
+Due to YouTube API limitations and execution time constraints, scraping may be interrupted before collecting all available comments. The "Continue Scraping" feature allows you to:
+
+1. Resume from where the previous scraping session ended
+2. Accumulate more comments from additional videos
+3. Continue until you've collected the desired amount of data
+
+This feature is automatically enabled when more comments are available after reaching a time limit.
 
 ## License
 
